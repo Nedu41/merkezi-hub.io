@@ -1,73 +1,125 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Merkezi HUB Kontrol</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: #eee; padding: 20px; margin: 0; }
-    h1 { color: #03dac6; }
-    .card { background: #1e1e1e; padding: 20px; margin: 15px auto; border-radius: 12px; max-width: 320px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-    button { padding: 16px; font-size: 1.2em; margin: 8px; width: 100%; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
-    .on { background: #03dac6; color: #000; }
-    .off { background: #333; color: #ccc; border: 1px solid #444; }
-    .status { margin: 12px 0; font-size: 1.1em; color: #bb86fc; }
-    .loading { color: #ff9800; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merkezi Hub v5.5.2 - GITHUB</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <style>
+        /* Ana CSS - .h dosyasındaki aynısı */
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .btn.pulsing { animation: pulse 1s infinite; }
+        .btn.success { background: #4CAF50 !important; color: white !important; }
+        .btn.error { background: #cf6679 !important; color: white !important; }
+        .btn.warning { background: #ff9800 !important; color: black !important; }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #eee; margin: 0; padding-bottom: 20px; }
+        .header { background: #222; color: #03dac6; padding: 12px; text-align: center; font-size: 1.1em; font-weight: bold; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .header span { font-size: 0.8em; color: #888; }
+        .nav { background: #1a1a1a; padding: 8px; display: flex; justify-content: center; gap: 15px; border-bottom: 1px solid #333; }
+        .nav a { color: #888; text-decoration: none; font-size: 0.9em; padding: 5px 10px; border-radius: 4px; transition: 0.3s; }
+        .nav a.active { background: #3700b3; color: #fff; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 10px; max-width: 800px; margin: 0 auto; }
+        .card { background: #1e1e1e; border: 1px solid #333; border-radius: 10px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; transition: transform 0.2s; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .dev-name { font-weight: bold; font-size: 0.95em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; display: inline-block; margin-right: 5px; }
+        .online-dot { background: #03dac6; box-shadow: 0 0 5px #03dac6; }
+        .offline-dot { background: #cf6679; }
+        .timer-icon-btn { background: transparent; border: none; color: #bb86fc; cursor: pointer; font-size: 1.2em; padding: 0 5px; }
+
+        .relay-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; background: #252525; padding: 5px; border-radius: 6px; }
+        .relay-label { font-size: 0.8em; color: #aaa; font-weight: bold; width: 25px; }
+        .btn { flex-grow: 1; padding: 8px 5px; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85em; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+        .on { background: #03dac6; color: #000; }
+        .off { background: #333; color: #ccc; border: 1px solid #444; }
+        .off:hover { background: #444; }
+        .sched-info { font-size: 0.65em; color: #bb86fc; text-align: center; margin-top: -3px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .section { margin-top: 5px; background: #2a2a2a; padding: 8px; border-radius: 8px; display: none; border: 1px solid #444; font-size: 0.85em; }
+        .days { display: flex; justify-content: space-between; gap: 2px; margin: 10px 0; }
+        .days label { width: 25px; height: 25px; line-height: 25px; background: #444; color: #eee; border-radius: 4px; text-align: center; cursor: pointer; font-size: 0.75em; font-weight: bold; }
+        .days input[type="checkbox"]:checked + label { background: #bb86fc; color: #000; }
+        .days input[type="checkbox"] { display: none; }
+
+        input[type="time"], input[type="text"], input[type="number"], select { 
+            background: #111; border: 1px solid #444; color: #fff; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; 
+        }
+        .action-btns { display: flex; gap: 5px; margin-top: 10px; }
+
+        .settings-container { max-width: 600px; margin: 10px auto; padding: 15px; background: #1f1f1f; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 8px; border-bottom: 1px solid #333; }
+
+        .github-badge {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #4CAF50;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            border: 1px solid #4CAF50;
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
-  <h1>Merkezi HUB</h1>
-  <p class="loading">Bağlantı kuruluyor...</p>
+    <!-- GitHub Badge -->
+    <div class="github-badge" id="githubBadge">
+        🚀 GitHub Sürümü | <span id="githubStatus">Yükleniyor...</span>
+    </div>
 
-  <div class="card">
-    <h3>Röle 1</h3>
-    <button id="r1_on" class="on">AÇIK</button>
-    <button id="r1_off" class="off">KAPALI</button>
-    <div class="status" id="r1_status">Durum: Bekleniyor...</div>
-  </div>
+    <!-- Aynı HTML yapısı -->
+    <div class="header">
+        <div>MERKEZİ HUB v5.5.2 - GITHUB</div>
+        <span id="clock">00:00</span>
+    </div>
 
-  <div class="card">
-    <h3>Röle 2</h3>
-    <button id="r2_on" class="on">AÇIK</button>
-    <button id="r2_off" class="off">KAPALI</button>
-    <div class="status" id="r2_status">Durum: Bekleniyor...</div>
-  </div>
+    <div class="nav">
+        <a href="/" id="nav1" onclick="route('/');return false;">Panel</a>
+        <a href="/settings" id="nav2" onclick="route('/settings');return false;">Cihazlar</a>
+        <a href="/weather" id="nav3" onclick="route('/weather');return false;">Oto-Hava</a>
+    </div>
 
-  <script>
-    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
-    const loading = document.querySelector('.loading');
+    <div id="content">GitHub'dan yükleniyor...</div>
 
-    client.on('connect', () => {
-      loading.textContent = 'MQTT Bağlandı!';
-      loading.style.color = '#4CAF50';
-      client.subscribe('nejat/relay/1/state');
-      client.subscribe('nejat/relay/2/state');
-    });
-
-    client.on('message', (topic, message) => {
-      const state = message.toString();
-      if (topic === 'nejat/relay/1/state') {
-        document.getElementById('r1_status').innerText = `Durum: ${state === '1' ? 'AÇIK 🟢' : 'KAPALI 🔴'}`;
-      }
-      if (topic === 'nejat/relay/2/state') {
-        document.getElementById('r2_status').innerText = `Durum: ${state === '1' ? 'AÇIK 🟢' : 'KAPALI 🔴'}`;
-      }
-    });
-
-    client.on('error', () => {
-      loading.textContent = 'MQTT Bağlantı Hatası!';
-      loading.style.color = '#cf6679';
-    });
-
-    function send(relay, state) {
-      client.publish(`nejat/relay/${relay}/set`, state);
-    }
-
-    document.getElementById('r1_on').onclick = () => send(1, '1');
-    document.getElementById('r1_off').onclick = () => send(1, '0');
-    document.getElementById('r2_on').onclick = () => send(2, '1');
-    document.getElementById('r2_off').onclick = () => send(2, '0');
-  </script>
+    <script>
+        // GitHub sürümü için özel bilgi
+        const GITHUB_VERSION = "v5.5.2-GITHUB";
+        const GITHUB_BUILD_DATE = "<!--BUILD_DATE-->";
+        
+        // Diğer tüm JavaScript kodları buraya (.h dosyasındaki aynısı)
+        // Yukarıdaki .ino dosyasındaki tüm JavaScript fonksiyonları
+        
+        // GitHub durumunu kontrol et
+        function checkGitHubStatus() {
+            fetch('/github_control?action=status')
+                .then(r => r.text())
+                .then(status => {
+                    document.getElementById('githubStatus').textContent = status.split(',')[0];
+                    console.log('GitHub Status:', status);
+                });
+        }
+        
+        // Sayfa yüklendiğinde
+        window.onload = function() {
+            console.log('GitHub Sürümü:', GITHUB_VERSION);
+            checkGitHubStatus();
+            
+            // 30 saniyede bir GitHub durumunu kontrol et
+            setInterval(checkGitHubStatus, 30000);
+            
+            // Geri kalan kodlar...
+            window.onpopstate = navigate;
+            navigate();
+            setInterval(update, 2000);
+        };
+    </script>
 </body>
 </html>
