@@ -2,123 +2,177 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>Merkezi Hub v5.5 (MQTT - Çoklu Röle)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Merkezi Hub v6.0 - Gelişmiş MQTT Paneli</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
-body { font-family: Arial; background:#121212; color:#eee; margin:0; }
-.header { background:#222; color:#03dac6; padding:14px; text-align:center; font-size:20px; font-weight:bold; }
-.grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap:12px; padding:12px; }
-.card { background:#1e1e1e; border-radius:12px; padding:10px; border:1px solid #333; }
-.btn { padding:12px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; width:100%; font-size:16px; }
-.on { background:#03dac6; color:#000; }
+body { font-family: Arial; background:#0f0f0f; color:#eee; margin:0; }
+header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; }
+.container { padding:10px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; padding:10px; }
+.card { background:#1b1b1b; border-radius:14px; padding:12px; border:1px solid #333; box-shadow:0 0 8px #000; }
+.card h3 { margin:0 0 8px 0; font-size:17px; color:#00e5ff; }
+.btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; }
+.on { background:#00e676; color:#000; }
 .off { background:#333; color:#ccc; }
-.all-buttons { display:flex; gap:10px; padding:10px; }
-.all-buttons button { flex:1; padding:10px; font-size:15px; border:none; border-radius:8px; cursor:pointer; }
+.groupBox { margin:12px 0; padding:10px; background:#111; border-radius:10px; border:1px solid #333; }
+.groupBox h2 { margin:0 0 10px 0; font-size:18px; color:#ff9800; }
+.addBox { background:#111; padding:12px; border-radius:10px; margin:10px; border:1px solid #333; }
+.addBox input { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #555; background:#222; color:#fff; }
+.addBox button { width:100%; padding:12px; margin-top:5px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:15px; }
+.all-buttons { display:flex; gap:12px; padding:12px; }
+.all-buttons button { flex:1; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; }
 </style>
 </head>
 <body>
 
-<div class="header">MERKEZİ HUB (MQTT - Çoklu Röle Kontrolü)</div>
+<header>MERKEZİ HUB v6.0 (Gelişmiş MQTT Kontrol Paneli)</header>
+<div class="container">
 
-<!-- Toplu kontrol butonları -->
+<!-- TOPLU KONTROL -->
 <div class="all-buttons">
-  <button onclick="turnAll(1)" style="background:#03dac6;color:#000">TÜMÜNÜ AÇ</button>
-  <button onclick="turnAll(0)" style="background:#f55;color:#fff">TÜMÜNÜ KAPAT</button>
+  <button onclick="turnAll(1)" style="background:#00e676;color:#000">TÜMÜNÜ AÇ</button>
+  <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
 </div>
 
-<div class="grid" id="deviceGrid"></div>
+<!-- GRUPLAR -->
+<div id="groupArea"></div>
+
+<!-- CİHAZ EKLEME ALANI -->
+<div class="addBox">
+  <h3>Yeni Cihaz Ekle</h3>
+  <input id="devName" placeholder="Cihaz Adı (örn: Bahçe Lamba)">
+  <input id="devSet" placeholder="Set Topic (örn: nejat/relay/bahce/set)">
+  <input id="devState" placeholder="State Topic (örn: nejat/relay/bahce/state)">
+  <input id="devGroup" placeholder="Grup (örn: Bahçe)">
+  <input id="devIP" placeholder="IP Adresi (örn: 192.168.1.113)">
+  <button onclick="addDevice()">CİHAZI EKLE</button>
+</div>
+
+<!-- ANA CİHAZ GRIDİ -->
+<div id="deviceGrid" class="grid"></div>
+
+</div>
 
 <script>
+//--------------------------------------------------
 // MQTT BAĞLANTI
+//--------------------------------------------------
 const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-// -------------------------
-// CİHAZ LİSTESİ
-// -------------------------
-const devices = [
-  { name: "Röle 1", topicSet:"nejat/relay/1/set", topicState:"nejat/relay/1/state" },
-  { name: "Röle 2", topicSet:"nejat/relay/2/set", topicState:"nejat/relay/2/state" },
+//--------------------------------------------------
+// CİHAZ VERİTABANI (JSON)
+//--------------------------------------------------
+let devices = JSON.parse(localStorage.getItem("devices") || "[]");
 
-  // Buraya istediğin kadar cihaz ekleyebilirsin:
-  // { name:"Salon Lamba", topicSet:"nejat/relay/salon/set", topicState:"nejat/relay/salon/state" },
-  // { name:"Bahçe", topicSet:"nejat/relay/bahce/set", topicState:"nejat/relay/bahce/state" },
-  // { name:"Priz", topicSet:"nejat/relay/priz/set", topicState:"nejat/relay/priz/state" },
-];
+//--------------------------------------------------
+// CİHAZ EKLE
+//--------------------------------------------------
+function addDevice(){
+    let name = devName.value.trim();
+    let topicSet = devSet.value.trim();
+    let topicState = devState.value.trim();
+    let group = devGroup.value.trim() || "Genel";
+    let ip = devIP.value.trim();
 
-// -------------------------
+    if(!name || !topicSet || !topicState){ alert("Alanlar boş olamaz!"); return; }
+
+    devices.push({ name, topicSet, topicState, group, ip }));
+    localStorage.setItem("devices", JSON.stringify(devices));
+
+    devName.value = "";
+    devSet.value = "";
+    devState.value = "";
+    devGroup.value = "";
+    devIP.value = "";
+
+    client.subscribe(topicState);
+    buildUI();
+}
+
+//--------------------------------------------------
 // ARAYÜZ OLUŞTUR
-// -------------------------
-function renderDevices(){
-  const grid = document.getElementById("deviceGrid");
-  grid.innerHTML = "";
+//--------------------------------------------------
+function buildUI(){
+    const grid = document.getElementById("deviceGrid");
+    const groupArea = document.getElementById("groupArea");
 
-  devices.forEach((d, index) => {
-    const card = document.createElement("div");
-    card.className = "card";
+    grid.innerHTML = "";
+    groupArea.innerHTML = "";
 
-    card.innerHTML = `
-      <h4>${d.name}</h4>
-      <button id="btn${index}" class="btn off" onclick="toggle(${index})">...</button>
-    `;
+    // GRUPLARI TOPLA
+    const groups = {};
+    devices.forEach(d => {
+        if(!groups[d.group]) groups[d.group] = [];
+        groups[d.group].push(d);
+    });
 
-    grid.appendChild(card);
-  });
-}
-
-// -------------------------
-// MQTT BAĞLANINCA
-// -------------------------
-client.on("connect", () => {
-  console.log("MQTT bağlandı");
-
-  // Tüm STATE topic'lerini dinle
-  devices.forEach(d => {
-    client.subscribe(d.topicState);
-  });
-});
-
-// -------------------------
-// STATE MESAJLARI
-// -------------------------
-client.on("message", (topic, message) => {
-  const val = message.toString();
-
-  devices.forEach((d, index) => {
-    if (topic === d.topicState) {
-      const btn = document.getElementById("btn" + index);
-
-      if(val === "1"){
-        btn.textContent = "AÇIK";
-        btn.className = "btn on";
-      } else {
-        btn.textContent = "KAPALI";
-        btn.className = "btn off";
-      }
+    // GRUP ARAYÜZÜ
+    for(const g in groups){
+        const box = document.createElement("div");
+        box.className = "groupBox";
+        box.innerHTML = `<h2>${g}</h2>`;
+        groupArea.appendChild(box);
     }
-  });
+
+    // CİHAZ KARTLARI
+    devices.forEach((d, index) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${d.name}</h3>
+          <button id="btn${index}" class="btn off" onclick="toggle(${index})">...</button>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+//--------------------------------------------------
+// MQTT BAĞLANDIĞINDA
+//--------------------------------------------------
+client.on("connect", () => {
+    console.log("MQTT Bağlandı");
+    devices.forEach(d => client.subscribe(d.topicState));
 });
 
-// -------------------------
+//--------------------------------------------------
+// MQTT STATE MESAJLARI
+//--------------------------------------------------
+client.on("message", (topic, msg) => {
+    const val = msg.toString();
+
+    devices.forEach((d, index) => {
+        if(topic === d.topicState){
+            const btn = document.getElementById("btn" + index);
+            if(btn){
+                if(val === "1"){ btn.textContent="AÇIK"; btn.className="btn on"; }
+                else { btn.textContent="KAPALI"; btn.className="btn off"; }
+            }
+        }
+    });
+});
+
+//--------------------------------------------------
 // TEK CİHAZI AÇ/KAPA
-// -------------------------
+//--------------------------------------------------
 function toggle(index){
-  const d = devices[index];
-  const btn = document.getElementById("btn" + index);
-  const newState = btn.textContent === "AÇIK" ? "0" : "1";
-  client.publish(d.topicSet, newState, { retain:true });
+    const d = devices[index];
+    const btn = document.getElementById("btn" + index);
+    const newState = btn.textContent === "AÇIK" ? "0" : "1";
+    client.publish(d.topicSet, newState, { retain:true });
 }
 
-// -------------------------
+//--------------------------------------------------
 // TÜM CİHAZLARI AÇ/KAPA
-// -------------------------
+//--------------------------------------------------
 function turnAll(state){
-  devices.forEach(d => {
-    client.publish(d.topicSet, String(state), { retain:true });
-  });
+    devices.forEach(d => client.publish(d.topicSet, String(state), { retain:true }));
 }
 
-renderDevices();
+//--------------------------------------------------
+// BAŞLAT
+//--------------------------------------------------
+buildUI();
 </script>
 
 </body>
