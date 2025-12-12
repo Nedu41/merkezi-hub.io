@@ -3,857 +3,1030 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Merkezi Hub v5.5.2</title>
+<title>Merkezi Hub v5.5.2 (GITHUB)</title>
 <meta http-equiv="Cache-Control" content="max-age=31536000, must-revalidate"> 
 
 <style>
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+.btn.pulsing { animation: pulse 1s infinite; }
+.btn.success { background: #4CAF50 !important; color: white !important; }
+.btn.error { background: #cf6679 !important; color: white !important; }
+.btn.warning { background: #ff9800 !important; color: black !important; }
 
-/* Buton animasyonları */
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+/* MQTT Kontrol için yeni stil */
+.mqtt-control {
+    background: #1a1a1a;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 10px 0;
+    border: 1px solid #333;
 }
-
-.btn.pulsing {
-  animation: pulse 1s infinite;
+.mqtt-status {
+    font-size: 0.85em;
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin: 5px 0;
+    display: inline-block;
 }
+.mqtt-connected { background: #2E7D32; color: white; }
+.mqtt-disconnected { background: #C62828; color: white; }
+.mqtt-topic { font-family: monospace; background: #111; padding: 2px 6px; border-radius: 3px; }
 
-/* Başarı/başarısızlık renkleri */
-.btn.success {
-  background: #4CAF50 !important;
-  color: white !important;
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #eee; margin: 0; padding-bottom: 20px; }
+.header { background: #222; color: #03dac6; padding: 12px; text-align: center; font-size: 1.1em; font-weight: bold; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; }
+.header span { font-size: 0.8em; color: #888; }
+.nav { background: #1a1a1a; padding: 8px; display: flex; justify-content: center; gap: 15px; border-bottom: 1px solid #333; }
+.nav a { color: #888; text-decoration: none; font-size: 0.9em; padding: 5px 10px; border-radius: 4px; transition: 0.3s; }
+.nav a.active { background: #3700b3; color: #fff; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; padding: 10px; max-width: 800px; margin: 0 auto; }
+.card { background: #1e1e1e; border: 1px solid #333; border-radius: 10px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; transition: transform 0.2s; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+.dev-name { font-weight: bold; font-size: 0.95em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; display: inline-block; margin-right: 5px; }
+.online-dot { background: #03dac6; box-shadow: 0 0 5px #03dac6; }
+.offline-dot { background: #cf6679; }
+.timer-icon-btn { background: transparent; border: none; color: #bb86fc; cursor: pointer; font-size: 1.2em; padding: 0 5px; }
+
+.relay-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; background: #252525; padding: 5px; border-radius: 6px; }
+.relay-label { font-size: 0.8em; color: #aaa; font-weight: bold; width: 25px; }
+.btn { flex-grow: 1; padding: 8px 5px; border: none; border-radius: 6px; font-weight: bold; font-size: 0.85em; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+.on { background: #03dac6; color: #000; }
+.off { background: #333; color: #ccc; border: 1px solid #444; }
+.off:hover { background: #444; }
+.sched-info { font-size: 0.65em; color: #bb86fc; text-align: center; margin-top: -3px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.section { margin-top: 5px; background: #2a2a2a; padding: 8px; border-radius: 8px; display: none; border: 1px solid #444; font-size: 0.85em; }
+.days { display: flex; justify-content: space-between; gap: 2px; margin: 10px 0; }
+.days label { width: 25px; height: 25px; line-height: 25px; background: #444; color: #eee; border-radius: 4px; text-align: center; cursor: pointer; font-size: 0.75em; font-weight: bold; }
+.days input[type="checkbox"]:checked + label { background: #bb86fc; color: #000; }
+.days input[type="checkbox"] { display: none; }
+
+input[type="time"], input[type="text"], input[type="number"], select { 
+    background: #111; border: 1px solid #444; color: #fff; padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; 
 }
+.action-btns { display: flex; gap: 5px; margin-top: 10px; }
 
-.btn.error {
-  background: #cf6679 !important;
-  color: white !important;
-}
+.settings-container { max-width: 600px; margin: 10px auto; padding: 15px; background: #1f1f1f; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; }
+td { padding: 8px; border-bottom: 1px solid #333; }
 
-.btn.warning {
-  background: #ff9800 !important;
-  color: black !important;
-}
-
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #121212; /* Koyu arka plan */
-  color: #eee;
-  margin: 0;
-  padding-bottom: 20px;
-}
-
-.header {
-  background: #222;
-  color: #03dac6; /* Neon yeşili/turkuaz vurgu */
-  padding: 12px;
-  text-align: center;
-  font-size: 1.1em;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.nav {
-  display: flex;
-  justify-content: space-around;
-  background: #1e1e1e;
-  padding: 0;
-  margin: 0;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-.nav a {
-  flex-grow: 1;
-  text-align: center;
-  padding: 12px 0;
-  text-decoration: none;
-  color: #aaa;
-  transition: all 0.3s ease;
-  font-size: 0.9em;
-  border-bottom: 3px solid transparent;
-}
-
-.nav a:hover {
-  background: #2a2a2a;
-  color: #fff;
-}
-
-.nav a.active {
-  color: #03dac6;
-  border-bottom: 3px solid #03dac6;
-  background: #2a2a2a;
-  font-weight: bold;
-}
-
-.container {
-  padding: 20px 15px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-/* KART STİLİ */
-.card {
-  background: #1f1f1f;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-  border: 1px solid #333;
-}
-
-.card h2 {
-  color: #03dac6;
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.2em;
-  border-bottom: 1px solid #333;
-  padding-bottom: 8px;
-}
-
-/* FORM/AYARLAR STİLİ */
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  color: #aaa;
-  font-size: 0.9em;
-}
-
-.form-group input[type="text"],
-.form-group input[type="number"] {
-  width: 100%;
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid #333;
-  background: #2a2a2a;
-  color: #fff;
-  box-sizing: border-box;
-  font-size: 1em;
-}
-
-.checkbox-group {
-    display: flex;
-    align-items: center;
+.github-info { 
+    background: #1a1a1a; 
+    padding: 5px 10px; 
+    border-radius: 4px; 
+    font-size: 0.8em; 
+    color: #888; 
+    text-align: center;
     margin-top: 10px;
+    border: 1px solid #333;
 }
+.github-info.active { border-color: #4CAF50; color: #4CAF50; }
+.github-info.inactive { border-color: #cf6679; color: #cf6679; }
 
-.checkbox-group input[type="checkbox"] {
-    margin-right: 10px;
-    width: 20px;
-    height: 20px;
-    background: #2a2a2a;
-    border: 1px solid #03dac6;
-    cursor: pointer;
+/* MQTT Kontrol Paneli */
+.mqtt-panel {
+    background: #1a1a1a;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px auto;
+    max-width: 800px;
+    border: 1px solid #333;
 }
-
-
-/* BUTONLAR */
-.btn {
-  display: block;
-  width: 100%;
-  padding: 12px 15px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: bold;
-  text-align: center;
-  transition: background 0.3s ease, opacity 0.3s ease;
-  margin-top: 10px;
-  opacity: 0.9;
+.mqtt-panel h3 {
+    color: #03dac6;
+    margin-top: 0;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
 }
-
-.btn-primary {
-  background: #03dac6;
-  color: #121212;
-}
-
-.btn-secondary {
-  background: #333;
-  color: #eee;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn:hover:not(:disabled) {
-  opacity: 1;
-}
-
-/* RÖLE KONTROL STİLİ */
-.relay-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  padding: 10px 0;
-  border-bottom: 1px dashed #333;
-}
-
-.relay-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-.relay-name {
-  font-size: 1em;
-  font-weight: 500;
-}
-
-.relay-status-text {
-  font-size: 0.9em;
-  margin-top: 5px;
-  color: #aaa;
-}
-
-.status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 10px;
-  display: inline-block;
-}
-
-.status-indicator.on {
-  background: #4CAF50; /* Yeşil */
-  box-shadow: 0 0 5px #4CAF50;
-}
-
-.status-indicator.off {
-  background: #cf6679; /* Kırmızı */
-  box-shadow: 0 0 5px #cf6679;
-}
-
-.status-indicator.loading {
-  background: #ff9800; /* Turuncu */
-  box-shadow: 0 0 5px #ff9800;
-}
-
-
-/* HAVA DURUMU KARTLARI */
-.weather-grid {
+.mqtt-topics {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
     margin-top: 15px;
 }
-
-.weather-info-card {
-    background: #2a2a2a;
-    border-radius: 6px;
+.mqtt-topic-item {
+    background: #252525;
     padding: 10px;
-    text-align: center;
-    border: 1px solid #333;
+    border-radius: 5px;
+    border-left: 4px solid #bb86fc;
 }
-
-.weather-info-card .label {
-    font-size: 0.8em;
-    color: #03dac6;
-    margin-bottom: 5px;
-    text-transform: uppercase;
+.mqtt-topic-item h4 {
+    margin: 0 0 8px 0;
+    color: #bb86fc;
+    font-size: 0.9em;
 }
-
-.weather-info-card .value {
-    font-size: 1.3em;
-    font-weight: bold;
-    color: #fff;
-}
-
-.main-weather-status {
-    text-align: center;
-    padding: 10px 0;
-    font-size: 1.5em;
-    font-weight: 300;
-}
-
-.main-weather-status .city {
-    font-weight: 600;
-    font-size: 0.8em;
-    color: #03dac6;
-}
-
-/* MESAJ KAPSAYICISI */
-#statusMessageContainer {
-  text-align: center;
-  padding: 10px;
-  margin-bottom: 15px;
-  border-radius: 4px;
-  font-weight: 500;
-  transition: all 0.5s ease;
-}
-
-.message-success {
-  background: #4CAF50;
-  color: white;
-}
-
-.message-error {
-  background: #cf6679;
-  color: white;
-}
-
-.message-info {
-  background: #2196F3;
-  color: white;
-}
-
-/* Ek Stil İyileştirmeleri */
-.status-info {
-    font-size: 0.8em;
-    color: #666;
-    text-align: center;
-    margin-top: 10px;
-}
-.status-info span {
-    color: #03dac6;
+.mqtt-topic-value {
+    font-family: monospace;
+    background: #111;
+    padding: 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    word-break: break-all;
 }
 
 </style>
 </head>
 <body>
 
-<div class="header">Merkezi Hub v5.5.2</div>
+<div class="header">
+    <div>MERKEZİ HUB v5.5.2 (GİTHUB)</div>
+    <span id="clock">00:00</span>
+</div>
 
 <div class="nav">
-    <a href="#control" onclick="navigate('control'); return false;" id="nav1">Kontrol</a>
-    <a href="#weather" onclick="navigate('weather'); return false;" id="nav3">Hava Durumu</a>
-    <a href="#settings" onclick="navigate('settings'); return false;" id="nav2">Ayarlar</a>
+  <a href="/" id="nav1" onclick="route('/');return false;">Panel</a>
+  <a href="/settings" id="nav2" onclick="route('/settings');return false;">Cihazlar</a>
+  <a href="/weather" id="nav3" onclick="route('/weather');return false;">Oto-Hava</a>
+  <a href="/mqtt" id="nav4" onclick="route('/mqtt');return false;">MQTT</a>
 </div>
 
-<div class="container">
-    <div id="statusMessageContainer"></div>
-    <div id="content">Yükleniyor...</div>
-</div>
+<div id="content">Yükleniyor...</div>
 
+<div id="githubStatus" class="github-info active">GitHub: AKTİF MOD | MQTT Kontrol Hazır</div>
 
 <script>
-// ====================================================================
-// --- HUB IP ADRESİ AYARI ---
-const HUB_IP = "http://esp32hub.local"; 
-// ====================================================================
+let DEVICES = [], STATUS = {}, CURRENT_WEATHER = {}, WEATHER_CONFIG = {};
+let MQTT_STATUS = { connected: false, topics: {}, clientId: '' };
+let lastToggleTime = 0;
+const daysName = ["Pt","Sa","Ça","Pe","Cu","Ct","Pz"];
 
-let deviceStates = {
-    R1: { id: 'R1', name: 'Güneşlik Motoru (R1)', state: -1 },
-    R2: { id: 'R2', name: 'Bahçe Aydınlatma (R2)', state: -1 } 
+// MQTT Topic'ler
+const MQTT_TOPICS = {
+    RELAY1_SET: 'nejat/relay/1/set',
+    RELAY1_STATE: 'nejat/relay/1/state',
+    RELAY2_SET: 'nejat/relay/2/set',
+    RELAY2_STATE: 'nejat/relay/2/state',
+    HUB_ONLINE: 'nejat/hub/online',
+    HUB_STATUS: 'nejat/hub/status',
+    HUB_GITHUB: 'nejat/hub/github',
+    HUB_MODE: 'nejat/hub/mode',
+    HUB_IP: 'nejat/hub/ip'
 };
 
-let weatherStatus = {
-    city_name: 'Yükleniyor...',
-    temp: '?',
-    humidity: '?',
-    wind_speed: '?',
-    wind_direction: '?',
-    description: 'Veri bekleniyor...',
-    timestamp: 0
-};
+// Saat Göstergesi
+setInterval(() => {
+    const d = new Date();
+    document.getElementById('clock').innerText = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}, 1000);
 
-let weatherConfig = {
-    city: '',
-    country: 'TR',
-    wind_threshold: 15.0,
-    telegram_enabled: false
-};
+// Navigasyon
+function route(path) { 
+    history.pushState(null, '', path); 
+    navigate(); 
+}
 
-let isRelayUpdating = { R1: false, R2: false };
+// API Fonksiyonları
+function fetchDevices() { 
+    return fetch("/get_devices").then(r=>r.json()).then(d=>DEVICES=d); 
+}
 
-// Gecikme fonksiyonu
-const delay = ms => new Promise(res => setTimeout(res, ms));
+function fetchStatus() { 
+    return fetch("/fetch_status").then(r=>r.json()).then(d=>{ 
+        STATUS = d.devices || {}; 
+        CURRENT_WEATHER = d.weather || {}; 
+        WEATHER_CONFIG = d.weather_config || {}; 
+        
+        // GitHub durumunu güncelle
+        const githubStatus = document.getElementById('githubStatus');
+        if (githubStatus && d.github_mode) {
+            githubStatus.textContent = `GitHub: ${d.github_mode.toUpperCase()} MOD | MQTT: ${d.mqtt_connected ? 'Bağlı' : 'Bağlı Değil'}`;
+            githubStatus.className = d.github_mode === 'github' ? 'github-info active' : 'github-info inactive';
+            if (d.github_size) {
+                githubStatus.textContent += ` (${Math.round(d.github_size/1024)}KB)`;
+            }
+        }
+        
+        // MQTT durumunu güncelle
+        MQTT_STATUS.connected = d.mqtt_connected || false;
+        
+        return d; 
+    }); 
+}
 
-// Durum mesajı gösterme fonksiyonu
-function showStatusMessage(type, message) {
-    const container = document.getElementById('statusMessageContainer');
-    if (!container) return;
-    container.innerHTML = message;
-    container.className = ''; 
-    container.classList.add(`message-${type}`);
+// MQTT Kontrol Fonksiyonları
+function mqttPublish(topic, message) {
+    // MQTT mesajı göndermek için proxy kullan
+    fetch(`/proxy?ip=${encodeURIComponent('localhost')}&url=/mqtt_publish?topic=${encodeURIComponent(topic)}&message=${encodeURIComponent(message)}`)
+        .then(r => r.text())
+        .then(response => {
+            console.log(`MQTT Published: ${topic} -> ${message}`);
+            updateMqttStatus(topic, message);
+        })
+        .catch(err => console.error('MQTT Publish Error:', err));
+}
+
+function updateMqttStatus(topic, message) {
+    if (MQTT_STATUS.topics[topic]) {
+        MQTT_STATUS.topics[topic].lastValue = message;
+        MQTT_STATUS.topics[topic].lastUpdate = new Date().toLocaleTimeString();
+    }
     
-    if (type === 'success' || type === 'info') {
-        // Hata mesajı değilse 4 saniye sonra temizle
-        setTimeout(() => {
-            container.innerHTML = '';
-            container.className = '';
-        }, 4000);
+    // UI'ı güncelle
+    if (location.pathname === '/mqtt') {
+        renderMqttControl();
     }
 }
 
-/**
- * Tüm cihazların ve hava durumunun son durumunu Hub'dan çeker (Retry Mekanizmalı)
- * @param {number} retries - Deneme sayısı.
- * @param {number} delayTime - İlk deneme sonrası bekleme süresi (ms).
- */
-async function fetchDevices(retries = 3, delayTime = 1000) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(`${HUB_IP}/get_all_status`, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
-            const data = await response.json();
-            
-            // Veri işleme
-            if (data.R1 !== undefined) updateDeviceState('R1', parseInt(data.R1));
-            if (data.R2 !== undefined) updateDeviceState('R2', parseInt(data.R2));
-            
-            if (data.weather_status) {
-                weatherStatus = {
-                    timestamp: data.weather_status.timestamp || weatherStatus.timestamp,
-                    city_name: data.weather_status.city_name || weatherStatus.city_name,
-                    temp: data.weather_status.temp || weatherStatus.temp,
-                    humidity: data.weather_status.humidity || weatherStatus.humidity,
-                    wind_speed: data.weather_status.wind_speed || weatherStatus.wind_speed,
-                    wind_direction: data.weather_status.wind_direction || weatherStatus.wind_direction,
-                    description: data.weather_status.description || weatherStatus.description
-                };
+// GitHub Kontrolü
+function githubControl(action) {
+    fetch(`/github_control?action=${action}`)
+        .then(r => r.text())
+        .then(response => {
+            alert(response);
+            if (action === 'update' || action === 'enable' || action === 'disable') {
+                setTimeout(() => location.reload(), 1000);
             }
-            if (data.weather_config) {
-                weatherConfig = {
-                    city: data.weather_config.city || weatherConfig.city,
-                    country: data.weather_config.country || weatherConfig.country,
-                    // Değerin sayısal olduğundan emin ol
-                    wind_threshold: parseFloat(data.weather_config.wind_threshold) || weatherConfig.wind_threshold,
-                    telegram_enabled: data.weather_config.telegram_enabled === 'true' || data.weather_config.telegram_enabled === true
-                };
-            }
-            return data; // Başarılı dönüş
+        });
+}
 
-        } catch (err) {
-            // Son deneme değilse bekle ve tekrar dene
-            if (i < retries - 1) {
-                console.warn(`Veri çekme hatası (Deneme ${i+1}/${retries}). Tekrar deneniyor...`, err);
-                await delay(delayTime * (i + 1)); // Exponential backoff benzeri
+// Geri bildirim
+function feedbackSuccess(btnId) {
+    const btn = document.getElementById(btnId); 
+    if(!btn) return;
+    const t = btn.textContent; 
+    const c = btn.className;
+    btn.textContent = '✓ OK'; 
+    btn.className = 'btn success';
+    setTimeout(() => { 
+        btn.textContent = t; 
+        btn.className = c; 
+    }, 2000);
+}
+
+// --- ANA PANEL RENDER ---
+function renderControl() {
+    let html = `<div class="grid">`;
+    
+    if(!DEVICES.length) {
+        html += `<div style="text-align:center;width:100%;padding:20px;color:#cf6679">
+                    <h4>❌ Cihaz Yok</h4>
+                    <p>Ayarlar > Cihazlar sekmesinden cihaz ekleyin.</p>
+                    <button class="btn" onclick="route('/settings')" style="margin-top:10px">Cihaz Ekle</button>
+                 </div>`;
+    }
+    
+    DEVICES.forEach((dev, i) => {
+        html += `
+        <div class="card">
+            <div class="card-header">
+                <div style="display:flex;align-items:center">
+                    <span class="status-dot" id="dot_${i}"></span>
+                    <span class="dev-name" title="${dev.ip}">${dev.name}</span>
+                </div>
+                <button class="timer-icon-btn" onclick="openSect(${i})" title="Zamanlayıcı Ayarları">🕒</button>
+            </div>
+
+            <div class="relay-row">
+                <div class="relay-label">R1</div>
+                <button class="btn off" id="b1_${i}" onclick="toggle(${i},1)">...</button>
+                <button class="btn" onclick="mqttControl('${dev.name}', 1, 'toggle')" style="background:#bb86fc;margin-left:5px;padding:5px 8px" title="MQTT Kontrol">📡</button>
+            </div>
+            <div class="sched-info" id="p1_${i}"></div>
+
+            <div class="relay-row">
+                <div class="relay-label">R2</div>
+                <button class="btn off" id="b2_${i}" onclick="toggle(${i},2)">...</button>
+                <button class="btn" onclick="mqttControl('${dev.name}', 2, 'toggle')" style="background:#bb86fc;margin-left:5px;padding:5px 8px" title="MQTT Kontrol">📡</button>
+            </div>
+            <div class="sched-info" id="p2_${i}"></div>
+
+            <div class="section" id="sec_${i}">
+                <div style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;">
+                    <label><input type="radio" name="r${i}" value="1" checked onchange="loadProgValues(${i})"> Röle 1</label>
+                    <label><input type="radio" name="r${i}" value="2" onchange="loadProgValues(${i})"> Röle 2</label>
+                </div>
+                
+                <div style="display:flex;gap:5px;align-items:center">
+                    <input type="time" id="t1_${i}" value="08:00"> 
+                    <span>-</span> 
+                    <input type="time" id="t2_${i}" value="18:00">
+                </div>
+
+                <div class="days">
+                    ${daysName.map((d,j)=>`<input type="checkbox" id="d${i}_${j}"><label for="d${i}_${j}">${d}</label>`).join("")}
+                </div>
+                
+                <div class="action-btns">
+                    <button class="btn on" id="saveProgBtn_${i}" onclick="saveProg(${i})">KAYDET</button>
+                    <button class="btn off" onclick="clearProg(${i})">SİL</button>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    html += `</div>`;
+    
+    // GitHub ve MQTT kontrol butonları
+    html += `
+    <div style="text-align:center;margin-top:20px;">
+        <div class="mqtt-control">
+            <h4 style="margin:0 0 10px 0;color:#03dac6">📡 MQTT Hızlı Kontrol</h4>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY1_SET}', 'ON')" style="background:#4CAF50">Röle1 AÇ</button>
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY1_SET}', 'OFF')" style="background:#cf6679">Röle1 KAPAT</button>
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY2_SET}', 'ON')" style="background:#4CAF50">Röle2 AÇ</button>
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY2_SET}', 'OFF')" style="background:#cf6679">Röle2 KAPAT</button>
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.HUB_STATUS}', 'Manuel_Kontrol_' + Date.now())" style="background:#2196F3">Durum Güncelle</button>
+            </div>
+        </div>
+        
+        <div style="margin-top:15px">
+            <button class="btn" onclick="githubControl('update')" style="background:#333;margin:5px">🔄 GitHub Güncelle</button>
+            <button class="btn" onclick="githubControl('enable')" style="background:#4CAF50;margin:5px">✅ GitHub Aktif</button>
+            <button class="btn" onclick="githubControl('disable')" style="background:#cf6679;margin:5px">❌ GitHub Pasif</button>
+            <button class="btn" onclick="githubControl('status')" style="background:#2196F3;margin:5px">ℹ️ GitHub Durumu</button>
+        </div>
+    </div>`;
+    
+    document.getElementById("content").innerHTML = html;
+}
+
+// MQTT Kontrol Fonksiyonu
+function mqttControl(deviceName, relay, action) {
+    const topic = relay === 1 ? MQTT_TOPICS.RELAY1_SET : MQTT_TOPICS.RELAY2_SET;
+    let message = 'TOGGLE';
+    
+    if (action === 'on') message = 'ON';
+    else if (action === 'off') message = 'OFF';
+    else {
+        // Toggle işlemi: mevcut duruma göre tersini gönder
+        const btn = document.getElementById(`b${relay}_${DEVICES.findIndex(d => d.name === deviceName)}`);
+        if (btn && btn.textContent.includes('AÇIK')) {
+            message = 'OFF';
+        } else {
+            message = 'ON';
+        }
+    }
+    
+    mqttPublish(topic, message);
+    
+    // UI feedback
+    alert(`MQTT Komutu Gönderildi: ${topic} = ${message}`);
+}
+
+// Durum Güncelleme
+function update() {
+    if(location.pathname !== "/") return;
+    
+    fetchStatus().then(() => {
+        DEVICES.forEach((dev, i) => {
+            const s = STATUS[dev.name] || {r1_state:"OFFLINE", r2_state:"OFFLINE"};
+            
+            // Online/Offline Durumu
+            const online = s.r1_state !== "OFFLINE";
+            const dot = document.getElementById("dot_"+i);
+            if(dot) {
+                dot.className = "status-dot " + (online ? "online-dot" : "offline-dot");
+            }
+
+            // Röle Durumları
+            for(let r = 1; r <= 2; r++) {
+                const state = s[`r${r}_state`] || "OFFLINE";
+                const btn = document.getElementById("b"+r+"_"+i);
+                const prog = document.getElementById("p"+r+"_"+i);
+
+                if(state === "OFFLINE") {
+                    if(btn) { 
+                        btn.textContent = "❌ HATA"; 
+                        btn.className = "btn error"; 
+                        btn.disabled = true; 
+                    }
+                } else {
+                    if(btn) {
+                        btn.textContent = state === "ON" ? "✅ AÇIK" : "⭕ KAPALI";
+                        btn.className = "btn " + (state === "ON" ? "on" : "off");
+                        btn.disabled = false;
+                    }
+                    // Zamanlayıcı Bilgisi
+                    const active = s[`sched_active_r${r}`] === "true";
+                    const start = s[`sched_start_r${r}`];
+                    if(prog) {
+                        prog.innerText = active ? `🕒 ${start} - ${s[`sched_end_r${r}`]}` : "";
+                    }
+                }
+            }
+        });
+    });
+}
+
+// Zamanlayıcı Bölümü Aç/Kapa
+function openSect(i) { 
+    const sec = document.getElementById("sec_"+i);
+    const isVis = sec.style.display === "block";
+    
+    // Diğer bölümleri kapat
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    
+    // İsteneni aç/kapa
+    if(!isVis) { 
+        sec.style.display = "block"; 
+        loadProgValues(i); 
+    }
+}
+
+// Seçili Röle
+function getRelay(i) { 
+    return document.querySelector(`input[name="r${i}"]:checked`).value; 
+}
+
+// Gün Maskesi
+function getMask(i) { 
+    let m = 0; 
+    for(let j = 0; j < 7; j++) {
+        if(document.getElementById("d"+i+"_"+j).checked) {
+            m |= 1 << j;
+        }
+    }
+    return m; 
+}
+
+// Röle Toggle
+function toggle(i, r) {
+    const dev = DEVICES[i]; 
+    const btn = document.getElementById("b"+r+"_"+i);
+    const originalText = btn.textContent;
+    const originalClass = btn.className;
+    
+    // Optimistik UI
+    btn.textContent = "⏳";
+    btn.disabled = true;
+    
+    // Manuel kontrol sinyali
+    fetch("/manual_control");
+    
+    // Röle durumunu belirle
+    const action = originalText.includes("AÇIK") ? "off" : "on";
+    
+    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent("/control?id="+r+"&action="+action)}`)
+        .then(response => {
+            if (response.ok) {
+                btn.textContent = action === "on" ? "✅ AÇIK" : "⭕ KAPALI";
+                btn.className = action === "on" ? "btn on" : "btn off";
+                setTimeout(update, 500);
             } else {
-                // Son denemede de hata varsa fırlat
-                throw new Error(`BAĞLANTI HATASI: Hub'a ulaşılamıyor. ${err.message}`);
+                throw new Error("HTTP hatası");
+            }
+        })
+        .catch(error => {
+            btn.textContent = originalText;
+            btn.className = originalClass;
+            btn.disabled = false;
+            alert(`Hata: ${dev.name} ile iletişim kurulamadı.`);
+        });
+}
+
+// Zamanlayıcı Kaydet
+function saveProg(i) {
+    const dev = DEVICES[i];
+    const r = getRelay(i);
+    const start = document.getElementById("t1_"+i).value;
+    const end = document.getElementById("t2_"+i).value;
+    const [sh, sm] = start.split(":");
+    const [eh, em] = end.split(":");
+    const mask = getMask(i);
+    
+    if(!mask) {
+        alert("Lütfen en az bir gün seçin!");
+        return;
+    }
+
+    // Local Storage'a kaydet
+    localStorage.setItem(`p_${dev.name}_r${r}_s`, start);
+    localStorage.setItem(`p_${dev.name}_r${r}_e`, end);
+    localStorage.setItem(`p_${dev.name}_r${r}_m`, mask);
+
+    const url = `/save?relay_id=${r}&start_h=${sh}&start_m=${sm}&end_h=${eh}&end_m=${em}&days=${mask}&active=1`;
+    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(url)}`)
+        .then(response => {
+            if(response.ok) {
+                feedbackSuccess('saveProgBtn_'+i);
+                setTimeout(update, 1000);
+            } else {
+                alert("Zamanlayıcı kaydedilemedi!");
+            }
+        })
+        .catch(() => alert("İletişim hatası!"));
+}
+
+// Zamanlayıcı Temizle
+function clearProg(i) {
+    const dev = DEVICES[i];
+    const r = getRelay(i);
+    
+    if(!confirm(`"${dev.name}" cihazının R${r} rölesi için zamanlayıcıyı iptal etmek istiyor musunuz?`)) {
+        return;
+    }
+
+    // Local Storage'dan sil
+    localStorage.removeItem(`p_${dev.name}_r${r}_s`);
+    localStorage.removeItem(`p_${dev.name}_r${r}_e`);
+    localStorage.removeItem(`p_${dev.name}_r${r}_m`);
+    
+    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(`/save?relay_id=${r}&days=0&active=0`)}`)
+        .then(() => {
+            alert("Zamanlayıcı iptal edildi!");
+            setTimeout(update, 800);
+        })
+        .catch(() => alert("İletişim hatası!"));
+}
+
+// Zamanlayıcı Değerlerini Yükle
+function loadProgValues(i) {
+    const dev = DEVICES[i];
+    const r = getRelay(i);
+    const s = localStorage.getItem(`p_${dev.name}_r${r}_s`);
+    const e = localStorage.getItem(`p_${dev.name}_r${r}_e`);
+    const m = localStorage.getItem(`p_${dev.name}_r${r}_m`);
+
+    document.getElementById(`t1_${i}`).value = s || "08:00";
+    document.getElementById(`t2_${i}`).value = e || "18:00";
+    
+    const mask = m ? parseInt(m) : 127; // Varsayılan: tüm günler
+    for(let j = 0; j < 7; j++) {
+        document.getElementById(`d${i}_${j}`).checked = (mask & (1 << j)) !== 0;
+    }
+}
+
+// --- MQTT KONTROL SAYFASI ---
+function renderMqttControl() {
+    let html = `
+    <div class="mqtt-panel">
+        <h3>📡 MQTT Uzaktan Kontrol Paneli</h3>
+        
+        <div class="mqtt-status ${MQTT_STATUS.connected ? 'mqtt-connected' : 'mqtt-disconnected'}">
+            ${MQTT_STATUS.connected ? '✅ MQTT Bağlantısı: AKTİF' : '❌ MQTT Bağlantısı: KAPALI'}
+        </div>
+        
+        <div style="margin:15px 0">
+            <h4>MQTT Topic Listesi:</h4>
+            <div class="mqtt-topics">
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.RELAY1_SET}</h4>
+                    <p>Röle 1 Kontrolü</p>
+                    <div class="action-btns">
+                        <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY1_SET}', 'ON')" style="background:#4CAF50">AÇ</button>
+                        <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY1_SET}', 'OFF')" style="background:#cf6679">KAPAT</button>
+                    </div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.RELAY2_SET}</h4>
+                    <p>Röle 2 Kontrolü</p>
+                    <div class="action-btns">
+                        <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY2_SET}', 'ON')" style="background:#4CAF50">AÇ</button>
+                        <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.RELAY2_SET}', 'OFF')" style="background:#cf6679">KAPAT</button>
+                    </div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.RELAY1_STATE}</h4>
+                    <p>Röle 1 Durumu</p>
+                    <div class="mqtt-topic-value" id="mqtt_relay1_state">Bekleniyor...</div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.RELAY2_STATE}</h4>
+                    <p>Röle 2 Durumu</p>
+                    <div class="mqtt-topic-value" id="mqtt_relay2_state">Bekleniyor...</div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.HUB_ONLINE}</h4>
+                    <p>Hub Çevrimiçi Durumu</p>
+                    <div class="mqtt-topic-value" id="mqtt_hub_online">1</div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.HUB_IP}</h4>
+                    <p>Hub IP Adresi</p>
+                    <div class="mqtt-topic-value" id="mqtt_hub_ip">Yükleniyor...</div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.HUB_STATUS}</h4>
+                    <p>Hub Durum Mesajı</p>
+                    <div class="action-btns">
+                        <button class="btn" onclick="sendHubStatus()" style="background:#2196F3">Mesaj Gönder</button>
+                    </div>
+                </div>
+                
+                <div class="mqtt-topic-item">
+                    <h4>${MQTT_TOPICS.HUB_GITHUB}</h4>
+                    <p>GitHub Durumu</p>
+                    <div class="mqtt-topic-value" id="mqtt_hub_github">Yükleniyor...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top:20px">
+            <h4>Özel MQTT Komutu:</h4>
+            <div style="display:flex;gap:10px;align-items:center">
+                <input type="text" id="customTopic" placeholder="nejat/relay/1/set" style="flex:1" value="${MQTT_TOPICS.RELAY1_SET}">
+                <input type="text" id="customMessage" placeholder="ON veya OFF" style="flex:1">
+                <button class="btn on" onclick="sendCustomMqtt()">Gönder</button>
+            </div>
+        </div>
+        
+        <div style="margin-top:20px;background:#111;padding:10px;border-radius:5px;">
+            <h4>MQTT Test Komutları:</h4>
+            <div style="display:flex;gap:5px;flex-wrap:wrap">
+                <button class="btn" onclick="testMqttSequence()" style="background:#FF9800">Test Dizisi Çalıştır</button>
+                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.HUB_STATUS}', 'Test_' + Date.now())" style="background:#9C27B0">Test Mesajı</button>
+                <button class="btn" onclick="getCurrentMqttStatus()" style="background:#00BCD4">Durumları Oku</button>
+            </div>
+        </div>
+    </div>`;
+    
+    document.getElementById("content").innerHTML = html;
+    
+    // MQTT durumlarını güncelle
+    getCurrentMqttStatus();
+}
+
+function sendCustomMqtt() {
+    const topic = document.getElementById('customTopic').value;
+    const message = document.getElementById('customMessage').value;
+    
+    if (!topic || !message) {
+        alert('Lütfen topic ve mesaj girin!');
+        return;
+    }
+    
+    mqttPublish(topic, message);
+    document.getElementById('customMessage').value = '';
+}
+
+function sendHubStatus() {
+    const message = `Hub_Status_${new Date().toLocaleTimeString()}`;
+    mqttPublish(MQTT_TOPICS.HUB_STATUS, message);
+}
+
+function testMqttSequence() {
+    alert('MQTT Test Dizisi başlatılıyor...');
+    
+    // Test dizisi
+    setTimeout(() => mqttPublish(MQTT_TOPICS.RELAY1_SET, 'ON'), 500);
+    setTimeout(() => mqttPublish(MQTT_TOPICS.RELAY2_SET, 'ON'), 1000);
+    setTimeout(() => mqttPublish(MQTT_TOPICS.HUB_STATUS, 'Test_Sequence_Complete'), 1500);
+    setTimeout(() => mqttPublish(MQTT_TOPICS.RELAY1_SET, 'OFF'), 2000);
+    setTimeout(() => mqttPublish(MQTT_TOPICS.RELAY2_SET, 'OFF'), 2500);
+    
+    alert('Test dizisi 3 saniye içinde tamamlanacak.');
+}
+
+function getCurrentMqttStatus() {
+    // MQTT durumlarını güncellemek için fetch
+    fetchStatus().then(data => {
+        // MQTT durumunu güncelle
+        document.getElementById('mqtt_hub_ip').textContent = data.ip_address || 'Bilinmiyor';
+        document.getElementById('mqtt_hub_github').textContent = data.github_mode ? `${data.github_mode.toUpperCase()} (${data.github_size} bayt)` : 'Bilinmiyor';
+    });
+}
+
+// --- AYARLAR SAYFASI ---
+function renderSettings() {
+    let html = `
+    <div class="settings-container">
+        <h3>📱 Cihaz Yönetimi</h3>
+        <table id="devicesTable">
+            <tr style="background:#2a2a2a">
+                <th>Cihaz Adı</th>
+                <th>IP Adresi</th>
+                <th>İşlem</th>
+            </tr>`;
+    
+    DEVICES.forEach((d, i) => {
+        html += `
+            <tr>
+                <td><input type="text" id="n${i}" value="${d.name}" style="width:100%"></td>
+                <td><input type="text" id="i${i}" value="${d.ip}" style="width:100%"></td>
+                <td><button class="btn error" onclick="del(${i})" title="Sil">🗑️</button></td>
+            </tr>`;
+    });
+    
+    html += `</table>
+        <br>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn" onclick="add()" style="background:#4CAF50">➕ Yeni Cihaz</button>
+            <button class="btn on" id="saveDevBtn" onclick="saveDevices()">💾 Kaydet</button>
+        </div>
+        
+        <hr style="border-top:1px solid #333;margin:20px 0">
+        
+        <h3>⚙️ Sistem İşlemleri</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn warning" onclick="restartHub()">🔄 Hub'ı Yeniden Başlat</button>
+            <button class="btn error" onclick="resetWifi()">📡 WiFi Ayarlarını Sıfırla</button>
+            <button class="btn" onclick="handleTestTelegram()" style="background:#0088cc">✉️ Telegram Test</button>
+            <button class="btn" onclick="route('/mqtt')" style="background:#9C27B0">📡 MQTT Kontrol Paneli</button>
+        </div>
+    </div>`;
+    
+    document.getElementById("content").innerHTML = html;
+}
+
+function add() { 
+    DEVICES.push({name: `Cihaz_${DEVICES.length+1}`, ip: "192.168.1."}); 
+    renderSettings(); 
+}
+
+function del(idx) { 
+    if(confirm(`"${DEVICES[idx].name}" cihazını silmek istiyor musunuz?`)) { 
+        DEVICES.splice(idx, 1); 
+        renderSettings(); 
+    }
+}
+
+function saveDevices() {
+    const arr = [];
+    for(let j = 0; j < DEVICES.length; j++) {
+        arr.push({
+            name: document.getElementById("n"+j).value.trim(),
+            ip: document.getElementById("i"+j).value.trim()
+        });
+    }
+    
+    fetch("/save_devices", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(arr)
+    }).then(r => feedbackSuccess('saveDevBtn'));
+}
+
+function restartHub() { 
+    if(confirm("Hub'ı yeniden başlatmak istiyor musunuz?")) {
+        fetch("/restart_hub");
+        setTimeout(() => alert("Yeniden başlatılıyor..."), 500);
+    }
+}
+
+function resetWifi() { 
+    if(confirm("WiFi ayarlarını sıfırlamak istiyor musunuz? Cihaz yeniden başlayacak ve WiFi ayarlama moduna geçecek.")) {
+        fetch("/reset_wifi");
+        setTimeout(() => alert("WiFi sıfırlanıyor..."), 500);
+    }
+}
+
+function handleTestTelegram() {
+    fetch("/test_telegram")
+        .then(() => alert("Test mesajı gönderildi! Telegram'ı kontrol edin."))
+        .catch(() => alert("Test mesajı gönderilemedi!"));
+}
+
+// --- HAVA DURUMU SAYFASI (aynı kaldı) ---
+function renderWeather() {
+    fetchStatus().then(() => {
+        const c = WEATHER_CONFIG;
+        const w = CURRENT_WEATHER;
+        
+        let statusMessage = "✅ Sistem Aktif";
+        let statusColor = "#03dac6";
+        let statusIcon = "✅";
+        
+        if (w.description === "FETCH_ERROR") {
+            statusMessage = "❌ Hava verisi alınamadı";
+            statusColor = "#cf6679";
+            statusIcon = "❌";
+        } else if (!w.temp && !w.humidity) {
+            statusMessage = "⏳ Hava durumu yükleniyor...";
+            statusColor = "#bb86fc";
+            statusIcon = "⏳";
+        }
+        
+        let windInfo = "-";
+        if (w.wind_speed) {
+            windInfo = `${w.wind_speed} m/s`;
+            if (w.wind_direction && w.wind_direction !== "-") {
+                windInfo += ` ${w.wind_direction}`;
             }
         }
-    }
-}
-
-// Cihaz durumunu günceller ve arayüzü kısmen render eder
-function updateDeviceState(id, newState) {
-    if (deviceStates[id].state !== newState) {
-        deviceStates[id].state = newState;
-        // Eğer kontrol sayfasındaysak durumu hemen güncelle
-        if (location.hash === '#control' || location.hash === '') {
-            renderControl(); 
+        
+        let scoreInfo = "";
+        if (w.lightness_score && w.lightness_score > 0) {
+            const score = w.lightness_score;
+            let scoreText = "";
+            let scoreColor = "";
+            
+            switch(score) {
+                case 1:
+                    scoreText = "AÇIK HAVA (Bulut ≤%25)";
+                    scoreColor = "#4CAF50";
+                    break;
+                case 2:
+                    scoreText = "PARÇALI BULUTLU (%25-95)";
+                    scoreColor = "#FF9800";
+                    break;
+                case 3:
+                    scoreText = "KAPALI/GECE (%95+)";
+                    scoreColor = "#2196F3";
+                    break;
+                default:
+                    scoreText = `SKOR: ${score}`;
+                    scoreColor = "#9C27B0";
+            }
+            
+            scoreInfo = `
+            <div style="background:#1a1a1a;padding:15px;border-radius:8px;margin-bottom:20px;border-left:5px solid ${scoreColor}">
+                <div style="font-size:1.2em;font-weight:bold;color:${scoreColor};margin-bottom:5px">
+                    🎯 BULUT SKORU: ${score}
+                </div>
+                <div style="font-size:0.9em;color:#ccc;font-weight:500">
+                    ${scoreText}
+                </div>
+                <div style="font-size:0.8em;color:#888;margin-top:8px">
+                    ${c.threshold ? `📏 Eşik Değer: ${c.threshold}` : ''}
+                </div>
+            </div>`;
         }
-    }
+        
+        let html = `
+        <div class="settings-container">
+            <h3>🌤️ Oto Meteoroloji Kontrol</h3>
+            
+            <div style="background:#222;padding:15px;border-radius:8px;margin-bottom:20px">
+                <div style="font-size:1.1em;font-weight:bold;color:#03dac6;margin-bottom:10px">
+                    ${w.city_name || c.city || '-'}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div>🌡️ Sıcaklık: <b>${w.temp || '-'}°C</b></div>
+                    <div>💧 Nem: <b>%${w.humidity || '-'}</b></div>
+                    <div>☁️ Bulut: <b>%${w.clouds || '-'}</b></div>
+                    <div>🌬️ Rüzgar: <b>${windInfo}</b></div>
+                </div>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid #333">
+                    🌅 Gün Doğumu: <b>${w.sunrise_time || '-'}</b><br>
+                    🌇 Gün Batımı: <b>${w.sunset_time || '-'}</b>
+                </div>
+            </div>
+            
+            ${scoreInfo}
+            
+            <div style="background:#1a1a1a;padding:10px;border-radius:5px;margin-bottom:20px;border:2px solid ${statusColor};text-align:center">
+                <span style="color:${statusColor};font-weight:bold;font-size:1.1em">
+                    ${statusIcon} ${statusMessage}
+                </span>
+            </div>
+            
+            <table>
+                <tr><td>Aktif:</td><td><input type="checkbox" id="w_active" ${c.active?'checked':''}></td></tr>
+                <tr><td>Cihaz:</td><td><select id="w_dev">${DEVICES.map(d=>`<option value="${d.name}" ${c.device_name===d.name?'selected':''}>${d.name}</option>`).join('')}</select></td></tr>
+                <tr><td>Röle:</td><td><select id="w_rel"><option value="1" ${c.relay_id==1?'selected':''}>Röle 1</option><option value="2" ${c.relay_id==2?'selected':''}>Röle 2</option></select></td></tr>
+                <tr><td>İşlem:</td><td><select id="w_act"><option value="ON" ${c.action=='ON'?'selected':''}>AÇ</option><option value="OFF" ${c.action=='OFF'?'selected':''}>KAPAT</option></select></td></tr>
+                <tr><td>Eşik:</td><td><select id="w_thr"><option value="1" ${c.threshold==1?'selected':''}>1-Az Bulutlu</option><option value="2" ${c.threshold==2?'selected':''}>2-Parçalı</option><option value="3" ${c.threshold==3?'selected':''}>3-Kapalı/Gece</option></select></td></tr>
+                <tr><td>Saat:</td><td><div style="display:flex;gap:5px;align-items:center"><input type="time" id="w_start" value="${c.start_time||'17:00'}">-<input type="time" id="w_end" value="${c.end_time||'23:00'}"></div></td></tr>
+                <tr><td>Rüzgar Eşiği (m/s):</td><td><input type="number" step="0.1" id="w_wind_threshold" placeholder="15.0" value="${c.wind_threshold||'15.0'}"></td></tr>
+                <tr><td>Şehir:</td><td><input type="text" id="w_city" placeholder="İstanbul" value="${c.city||''}"></td></tr>
+                <tr><td>İlçe:</td><td><input type="text" id="w_district" placeholder="Kadıköy" value="${c.district||''}"></td></tr>
+                <tr><td>Mahalle:</td><td><input type="text" id="w_neigh" placeholder="Opsiyonel" value="${c.neighbourhood||''}"></td></tr>
+            </table>
+            
+            <br>
+            
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <button class="btn on" id="saveWeatherBtn" onclick="saveWeather()">💾 Ayarları Kaydet</button>
+                <button class="btn" id="refreshWeatherBtn" onclick="refreshWeather()" style="background:#2196F3">🔄 Hava Durumunu Güncelle</button>
+            </div>
+        </div>`;
+        
+        document.getElementById("content").innerHTML = html;
+    });
 }
 
-// Cihaz kontrolü gönderir
-async function sendControl(id, state) {
-    if(isRelayUpdating[id]) return;
-
-    // Butonu bul
-    const btn = document.querySelector(`#control-btn-${id}`);
+function saveWeather() {
+    const cfg = {
+        active: document.getElementById('w_active').checked,
+        device_name: document.getElementById('w_dev').value,
+        relay_id: parseInt(document.getElementById('w_rel').value),
+        threshold: parseInt(document.getElementById('w_thr').value),
+        action: document.getElementById('w_act').value,
+        start_time: document.getElementById('w_start').value,
+        end_time: document.getElementById('w_end').value,
+        wind_threshold: parseFloat(document.getElementById('w_wind_threshold').value),
+        city: document.getElementById('w_city').value.trim(),
+        district: document.getElementById('w_district').value.trim(),
+        neighbourhood: document.getElementById('w_neigh').value.trim(),
+        latitude: "",
+        longitude: ""
+    };
     
-    // UI'daki durumu hemen loading olarak ayarla
-    const previousState = deviceStates[id].state;
-    deviceStates[id].state = -1; 
-    renderControl();
-
-    // Butonu disable et ve animasyonu başlat
-    if(btn) {
-        btn.disabled = true;
-        btn.classList.add('pulsing');
-        isRelayUpdating[id] = true;
-    }
-
-    try {
-        const response = await fetch(`${HUB_IP}/manual_control?relay=${id.slice(1)}&state=${state}`);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        // Başarılı olursa son durumu çek ve UI'ı güncelle
-        // Hızlı bir tek deneme yap (hata olursa yutulur)
-        await fetchDevices(1, 0).catch(e => console.error("Hızlı durum çekme başarısız:", e.message)); 
-        
-        showStatusMessage('success', `${deviceStates[id].name} durumu ${state === 1 ? 'AÇIK' : 'KAPALI'} olarak güncellendi.`);
-
-    } catch (err) {
-        // Hata durumunda eski bilinen duruma geri dön (eğer varsa) ve hata mesajı göster
-        console.error(`Kontrol gönderme hatası (${id}):`, err);
-        showStatusMessage('error', `Kontrol hatası: ${deviceStates[id].name} güncellenemedi. Lütfen Hub bağlantısını kontrol edin.`);
-        deviceStates[id].state = previousState; // Eski duruma geri dön
-    } finally {
-        if(btn) {
-            btn.disabled = false;
-            btn.classList.remove('pulsing');
-            isRelayUpdating[id] = false;
+    const saveBtn = document.getElementById('saveWeatherBtn');
+    const originalText = saveBtn.textContent;
+    
+    saveBtn.disabled = true;
+    saveBtn.textContent = "⏳ Kaydediliyor...";
+    
+    fetch("/save_weather_config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(cfg)
+    })
+    .then(r => {
+        if(r.ok) {
+            saveBtn.textContent = "✅ Kaydedildi";
+            saveBtn.style.background = "#4CAF50";
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = "";
+                saveBtn.disabled = false;
+                location.reload();
+            }, 2000);
+        } else {
+            saveBtn.textContent = "❌ Hata";
+            saveBtn.style.background = "#cf6679";
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = "";
+                saveBtn.disabled = false;
+            }, 3000);
         }
-        renderControl(); // Son durumu yansıt
-    }
+    })
+    .catch(() => {
+        saveBtn.textContent = "❌ Bağlantı Hatası";
+        saveBtn.style.background = "#cf6679";
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.background = "";
+            saveBtn.disabled = false;
+        }, 3000);
+    });
 }
 
-// Hava durumu yenileme isteği gönderir
-async function refreshWeather() {
+function refreshWeather() {
     const refreshBtn = document.getElementById('refreshWeatherBtn');
     const originalText = refreshBtn.textContent;
     
-    refreshBtn.textContent = "Güncelleniyor...";
     refreshBtn.disabled = true;
-    refreshBtn.classList.add('pulsing');
+    refreshBtn.textContent = "⏳ Güncelleniyor...";
     
-    try {
-        // Hub'a yenileme isteği gönder
-        const response = await fetch(`${HUB_IP}/refresh_weather`);
-        if (!response.ok) throw new Error('HTTP hatası');
-        
-        const data = await response.json();
-        if (data.status === 'success') {
-            showStatusMessage('info', 'Hava durumu isteği Hub tarafından alındı. Veri çekiliyor...');
-            // Verilerin Hub'a inmesini beklemek için biraz gecikme ekleyelim
-            await delay(3000); 
-            // Yeni verileri çekmek için fetchDevices'ı yeniden deneme mekanizmasıyla çağır
-            await fetchDevices(3, 1000); 
-            renderWeather();
-            showStatusMessage('success', 'Hava durumu verileri güncellendi.');
+    fetch("/save_weather_config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({refresh: true})
+    })
+    .then(r => {
+        if(r.ok) {
+            refreshBtn.textContent = "✅ Güncellendi";
+            refreshBtn.style.background = "#4CAF50";
+            setTimeout(() => {
+                refreshBtn.textContent = originalText;
+                refreshBtn.style.background = "";
+                refreshBtn.disabled = false;
+                location.reload();
+            }, 2000);
         } else {
-            throw new Error(data.message || 'Bilinmeyen güncelleme hatası.');
+            refreshBtn.textContent = "❌ Hata";
+            refreshBtn.style.background = "#cf6679";
+            setTimeout(() => {
+                refreshBtn.textContent = originalText;
+                refreshBtn.style.background = "";
+                refreshBtn.disabled = false;
+            }, 3000);
         }
-    } catch (err) {
-        showStatusMessage('error', `Hava durumu yenileme hatası: ${err.message}`);
-    } finally {
-        refreshBtn.textContent = originalText;
-        refreshBtn.disabled = false;
-        refreshBtn.classList.remove('pulsing');
-    }
-}
-
-// Hava durumu ayarlarını kaydeder
-async function saveWeatherConfig() {
-    const saveBtn = document.getElementById('saveConfigBtn');
-    const originalText = saveBtn.textContent;
-    
-    const city = document.getElementById('cityInput').value.trim();
-    const country = document.getElementById('countryInput').value.trim();
-    const windThreshold = document.getElementById('windThresholdInput').value.trim();
-    const telegramEnabled = document.getElementById('telegramEnabledCheck').checked;
-    
-    if (!city || !country || !windThreshold || isNaN(parseFloat(windThreshold))) {
-        showStatusMessage('error', 'Lütfen tüm alanları doğru şekilde doldurunuz.');
-        return;
-    }
-
-
-    saveBtn.textContent = "Kaydediliyor...";
-    saveBtn.disabled = true;
-    saveBtn.classList.add('pulsing');
-    
-    // URLSearchParams ile verileri güvenli şekilde kodla
-    const params = new URLSearchParams({
-        city: city,
-        country: country,
-        wind_threshold: windThreshold,
-        telegram_enabled: telegramEnabled ? 'true' : 'false'
+    })
+    .catch(() => {
+        refreshBtn.textContent = "❌ Bağlantı Hatası";
+        refreshBtn.style.background = "#cf6679";
+        setTimeout(() => {
+            refreshBtn.textContent = originalText;
+            refreshBtn.style.background = "";
+            refreshBtn.disabled = false;
+        }, 3000);
     });
-    
-    const url = `${HUB_IP}/save_weather_config?${params.toString()}`;
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('HTTP hatası');
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showStatusMessage('success', 'Ayarlar başarıyla kaydedildi ve uygulandı.');
-            // Güncel konfigürasyonu çek ve ayarlar sayfasını yeniden render et
-            await fetchDevices(1, 0); 
-            renderSettings();
-        } else {
-            throw new Error(data.message || 'Bilinmeyen kaydetme hatası.');
-        }
-
-    } catch (err) {
-        showStatusMessage('error', `Ayarları kaydetme hatası: ${err.message}. Hub'a erişilemiyor.`);
-    } finally {
-        saveBtn.textContent = originalText;
-        saveBtn.disabled = false;
-        saveBtn.classList.remove('pulsing');
-    }
 }
 
-// WiFi sıfırlama
-async function resetWiFi() {
-    // ALERT KULLANILMIYOR: Özel modal yerine şimdilik tarayıcının yerleşik onay kutusu kullanılıyor
-    if (!window.confirm("UYARI: WiFi ayarlarını sıfırlamak ve Hub'ı yapılandırma moduna almak istediğinizden emin misiniz?")) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${HUB_IP}/reset_wifi`);
-        if (response.ok) {
-            showStatusMessage('warning', "WiFi sıfırlama isteği gönderildi. Hub yeniden başlatılacak ve yeni WiFi ağına bağlanmanız gerekecek.");
-        } else {
-            showStatusMessage('error', "WiFi sıfırlama isteği gönderilemedi. Bağlantı hatası.");
-        }
-    } catch (err) {
-        showStatusMessage('error', "WiFi sıfırlama isteği gönderilemedi. Hata: " + err.message);
-    }
-}
-
-// Hub yeniden başlatma
-async function restartHub() {
-    // ALERT KULLANILMIYOR: Özel modal yerine şimdilik tarayıcının yerleşik onay kutusu kullanılıyor
-    if (!window.confirm("UYARI: Hub'ı şimdi yeniden başlatmak istediğinizden emin misiniz?")) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${HUB_IP}/restart_hub`);
-        if (response.ok) {
-            showStatusMessage('warning', "Yeniden başlatma isteği gönderildi. Hub yeniden başlıyor... Birkaç saniye sonra tekrar deneyin.");
-        } else {
-            showStatusMessage('error', "Yeniden başlatma isteği gönderilemedi. Bağlantı hatası.");
-        }
-    } catch (err) {
-        showStatusMessage('error', "Yeniden başlatma isteği gönderilemedi. Hata: " + err.message);
-    }
-}
-
-
-// --- RENDER FONKSİYONLARI ---
-
-function renderControl() {
-    const content = document.getElementById('content');
-    if (!content) return;
-
-    let html = '<div class="card"><h2>Röle Kontrol Paneli</h2>';
-    
-    // Röleler
-    Object.values(deviceStates).forEach(device => {
-        const isOn = device.state === 1;
-        const isOffline = device.state === -1;
-        const statusText = isOffline ? 'YÜKLENİYOR...' : (isOn ? 'AÇIK' : 'KAPALI');
-        const statusClass = isOffline ? 'loading' : (isOn ? 'on' : 'off');
-        const nextState = isOn ? 0 : 1;
-        const nextAction = isOn ? 'KAPAT' : 'AÇ';
-
-        html += `
-        <div class="relay-item">
-            <div>
-                <span class="relay-name">${device.name}</span>
-                <div class="relay-status-text">
-                    <span class="status-indicator ${statusClass}"></span> 
-                    Mevcut Durum: ${statusText}
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button 
-                    id="control-btn-${device.id}" 
-                    data-state="${nextState}"
-                    class="btn ${isOffline ? 'btn-secondary' : (isOn ? 'btn-secondary' : 'btn-primary')}" 
-                    style="width: 80px;" 
-                    onclick="sendControl('${device.id}', ${nextState})"
-                    ${isOffline || isRelayUpdating[device.id] ? 'disabled' : ''}
-                >
-                    ${nextAction}
-                </button>
-            </div>
-        </div>
-        `;
-    });
-
-    html += '</div>';
-    
-    html += '<p class="status-info">Hub IP: <span>' + HUB_IP + '</span></p>';
-    
-    content.innerHTML = html;
-}
-
-function renderWeather() {
-    const content = document.getElementById('content');
-    if (!content) return;
-
-    const windSpeedValue = parseFloat(weatherStatus.wind_speed);
-    const windThresholdValue = parseFloat(weatherConfig.wind_threshold);
-
-    const isWindy = !isNaN(windSpeedValue) && !isNaN(windThresholdValue) && windSpeedValue >= windThresholdValue;
-
-    const windIcon = isWindy 
-        ? '⚠️ Yüksek Rüzgar Uyarısı' 
-        : (!isNaN(windSpeedValue) ? '✅ Normal Rüzgar Seviyesi' : 'Rüzgar Bilgisi Yok');
-    
-    const lastUpdate = weatherStatus.timestamp 
-        ? new Date(weatherStatus.timestamp * 1000).toLocaleString('tr-TR') 
-        : 'Bilinmiyor';
-
-    let html = `
-    <div class="card">
-        <h2>Hava Durumu Bilgileri</h2>
-        
-        <div class="main-weather-status">
-            <div class="city">${weatherStatus.city_name}</div>
-            ${weatherStatus.description}
-        </div>
-
-        <div class="weather-grid">
-            <div class="weather-info-card">
-                <div class="label">Sıcaklık</div>
-                <div class="value">${weatherStatus.temp}°C</div>
-            </div>
-            <div class="weather-info-card">
-                <div class="label">Nem</div>
-                <div class="value">${weatherStatus.humidity}%</div>
-            </div>
-            <div class="weather-info-card">
-                <div class="label">Rüzgar Hızı</div>
-                <div class="value">${weatherStatus.wind_speed} m/s</div>
-            </div>
-            <div class="weather-info-card">
-                <div class="label">Rüzgar Yönü</div>
-                <div class="value">${weatherStatus.wind_direction}</div>
-            </div>
-        </div>
-
-        <p class="status-info" style="margin-top: 20px;">
-            Son Güncelleme: <span>${lastUpdate}</span>
-        </p>
-        
-        <button id="refreshWeatherBtn" class="btn btn-secondary" onclick="refreshWeather()">HAVA DURUMUNU ŞİMDİ GÜNCELLE</button>
-    </div>
-
-    <div class="card">
-        <h2>Rüzgar Kontrol Durumu</h2>
-        <div style="text-align: center; font-size: 1.1em; padding: 10px;">
-            <p style="color: ${isWindy ? '#ff9800' : '#4CAF50'}; font-weight: bold;">${windIcon}</p>
-            <p style="font-size: 0.9em; color: #aaa;">Güneşlik Kapatma Eşiği: <b>${weatherConfig.wind_threshold} m/s</b></p>
-            <p style="font-size: 0.8em; color: #666;">Telegram Bildirimi: ${weatherConfig.telegram_enabled ? 'AÇIK' : 'KAPALI'}</p>
-        </div>
-    </div>
-    `;
-    content.innerHTML = html;
-}
-
-
-function renderSettings() {
-    const content = document.getElementById('content');
-    if (!content) return;
-
-    let html = `
-    <div class="card">
-        <h2>Hava Durumu Ayarları</h2>
-        <div class="form-group">
-            <label for="cityInput">Şehir Adı (OpenWeatherMap için)</label>
-            <input type="text" id="cityInput" value="${weatherConfig.city}" placeholder="Örn: Istanbul">
-        </div>
-        <div class="form-group">
-            <label for="countryInput">Ülke Kodu (Örn: TR)</label>
-            <input type="text" id="countryInput" value="${weatherConfig.country}" placeholder="Örn: TR">
-        </div>
-        <div class="form-group">
-            <label for="windThresholdInput">Rüzgar Hızı Eşiği (m/s)</label>
-            <input type="number" step="0.1" id="windThresholdInput" value="${weatherConfig.wind_threshold}" placeholder="Örn: 15.0">
-        </div>
-        
-        <div class="form-group">
-            <label for="telegramEnabledCheck" style="margin-bottom: 10px;">Telegram Bildirimi</label>
-            <div class="checkbox-group">
-                <input type="checkbox" id="telegramEnabledCheck" ${weatherConfig.telegram_enabled ? 'checked' : ''}>
-                <label for="telegramEnabledCheck" style="margin: 0; color: #fff;">Rüzgar eşiği aşıldığında Telegram uyarısı gönderilsin.</label>
-            </div>
-        </div>
-        
-        <button id="saveConfigBtn" class="btn btn-primary" onclick="saveWeatherConfig()">AYARLARI KAYDET VE UYGULA</button>
-    </div>
-
-    <div class="card">
-        <h2>Hub Yönetimi</h2>
-        <p class="status-info" style="text-align: left; margin-bottom: 20px; color: #eee;">
-            Cihazınızın WiFi bağlantısını sıfırlayabilir veya Hub'ı yeniden başlatabilirsiniz.
-        </p>
-        <button class="btn btn-secondary" onclick="restartHub()">Hub'ı Yeniden Başlat</button>
-        <button class="btn btn-error" onclick="resetWiFi()" style="margin-top: 15px;">WiFi Ayarlarını Sıfırla (Yapılandırma Modu)</button>
-    </div>
-    `;
-    content.innerHTML = html;
-}
-
-
-// --- PERİYODİK GÜNCELLEME VE NAVİGASYON ---
-
-/**
- * Navigasyon işlemini yönetir. Önce iskeleti render eder, sonra arka planda veri çeker.
- * @param {string} page - Gidilecek sayfa (control, weather, settings).
- */
-async function navigate(page) {
-    // URL'deki hash'i ayarlar (boşsa 'control' varsay)
-    const targetPage = page || location.hash.replace('#', '') || 'control';
-    location.hash = targetPage;
+// --- NAVİGASYON ---
+function navigate() {
+    const p = location.pathname;
     
     // Aktif menüyü güncelle
     document.querySelectorAll('.nav a').forEach(a => a.className = '');
-    const activeNavId = targetPage === 'control' ? 'nav1' : (targetPage === 'settings' ? 'nav2' : 'nav3');
-    const activeNav = document.getElementById(activeNavId);
-    if(activeNav) activeNav.className = 'active';
+    if(p === "/") document.getElementById("nav1").className = "active";
+    else if(p === "/settings") document.getElementById("nav2").className = "active";
+    else if(p === "/weather") document.getElementById("nav3").className = "active";
+    else if(p === "/mqtt") document.getElementById("nav4").className = "active";
 
-    // 1. Sayfayı mevcut/eski verilerle hemen render et (iskeleti göster)
-    if (targetPage === 'settings') {
-        renderSettings();
-    } else if (targetPage === 'weather') {
-        renderWeather();
+    // İlgili sayfayı render et
+    if(p === "/settings") {
+        fetchDevices().then(renderSettings);
+    } else if(p === "/weather") {
+        fetchDevices().then(renderWeather);
+    } else if(p === "/mqtt") {
+        fetchDevices().then(renderMqttControl);
     } else {
-        renderControl();
-    }
-    
-    // Hata mesajını temizle
-    document.getElementById('statusMessageContainer').innerHTML = '';
-
-
-    // 2. Verileri arka planda güncelle (3 denemeli)
-    try {
-        await fetchDevices(3, 1000);
-        
-        // Veri geldikten sonra tekrar render et (güncel verilerle)
-        if (targetPage === 'settings') renderSettings();
-        else if (targetPage === 'weather') renderWeather();
-        else renderControl();
-        
-    } catch (err) {
-        console.error("Navigasyon sonrası veri güncelleme hatası:", err.message);
-        // Kontrol sayfasında net bir hata göster
-        if(targetPage === 'control') {
-             showStatusMessage('error', err.message);
-        } else {
-             // Diğer sayfalarda daha az rahatsız edici bir uyarı
-             showStatusMessage('info', 'Hub ile bağlantı kurulamadı. Veriler güncel olmayabilir.');
-        }
+        fetchDevices().then(() => {
+            renderControl();
+            update();
+        });
     }
 }
 
 // Sayfa Yüklendiğinde
 window.onload = function() {
-    const hash = location.hash.replace('#', '');
-    const defaultPage = hash || 'control'; 
-    
-    // Varsayılan sayfa navigasyonunu tetikle
-    navigate(defaultPage);
-    
-    // Durum güncellemelerini periyodik olarak çek (Her 5 saniyede bir)
-    setInterval(() => {
-        // Periyodik güncelleme hatasını yut (tek deneme, 0ms bekleme)
-        fetchDevices(1, 0) 
-            .then(() => {
-                // Sadece kontrol sayfasındaysak durumu güncelle
-                const currentPage = location.hash.replace('#', '') || 'control';
-                if(currentPage === 'control') renderControl(); 
-            })
-            .catch(err => {
-                 // Konsolda uyarı mesajı bırak (UI'da gösterme, arayüzün kilitlenmesini engelle)
-                 console.log('Periyodik güncelleme atlandı:', err.message);
-            });
-    }, 5000);
-    
-    // Hash (URL'deki #) değiştiğinde navigasyonu tekrar çağır
-    window.onhashchange = () => navigate();
-}
+    window.onpopstate = navigate;
+    navigate();
+    setInterval(update, 2000); // Her 2 saniyede bir durum güncelle
+};
 </script>
 </body>
 </html>
