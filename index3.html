@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP01 Röle Kontrol</title>
+<title>ESP01 MQTT Kontrol</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <style>
 * {
     margin: 0;
@@ -16,83 +17,181 @@ body {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     color: #fff;
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     padding: 20px;
 }
 
 .container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    color: #03dac6;
+    margin-bottom: 10px;
+    font-size: 2em;
+}
+
+.mqtt-status {
+    text-align: center;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.mqtt-status.connected {
+    background: #4CAF50;
+    color: white;
+}
+
+.mqtt-status.disconnected {
+    background: #cf6679;
+    color: white;
+}
+
+.mqtt-status.connecting {
+    background: #ff9800;
+    color: white;
+}
+
+.add-device-section {
     background: rgba(30, 30, 30, 0.95);
-    padding: 30px;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    max-width: 450px;
-    width: 100%;
-    backdrop-filter: blur(10px);
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 30px;
     border: 1px solid rgba(255,255,255,0.1);
 }
 
-h2 {
-    text-align: center;
+.add-device-section h3 {
     color: #03dac6;
-    margin-bottom: 25px;
-    font-size: 1.8em;
+    margin-bottom: 15px;
+}
+
+.input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
 }
 
 .input-group {
-    margin-bottom: 20px;
+    flex: 1;
+    min-width: 200px;
 }
 
 .input-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     color: #aaa;
-    font-size: 0.9em;
-    font-weight: 500;
+    font-size: 0.85em;
 }
 
-.input-group input {
+.input-group input, .input-group select {
     width: 100%;
-    padding: 12px;
+    padding: 10px;
     background: #252525;
     color: #fff;
     border: 1px solid #444;
     border-radius: 8px;
     font-size: 1em;
-    transition: border 0.3s;
 }
 
-.input-group input:focus {
+.input-group input:focus, .input-group select:focus {
     outline: none;
     border-color: #03dac6;
 }
 
-.relay-section {
-    background: #1a1a1a;
+.btn-add {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-add:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
+.devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.device-card {
+    background: rgba(30, 30, 30, 0.95);
     padding: 20px;
-    border-radius: 12px;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+}
+
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 15px;
-    border: 1px solid #333;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+}
+
+.device-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #03dac6;
+}
+
+.device-info {
+    font-size: 0.75em;
+    color: #888;
+    margin-top: 3px;
+}
+
+.btn-delete {
+    background: #cf6679;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.btn-delete:hover {
+    background: #b00020;
+}
+
+.relay-item {
+    background: #1a1a1a;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
 }
 
 .relay-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .relay-label {
-    font-size: 1.1em;
     font-weight: bold;
-    color: #03dac6;
+    color: #fff;
 }
 
 .relay-status {
-    font-size: 0.9em;
-    padding: 5px 12px;
-    border-radius: 15px;
+    font-size: 0.85em;
+    padding: 3px 10px;
+    border-radius: 12px;
     background: #333;
     color: #aaa;
 }
@@ -103,73 +202,47 @@ h2 {
 }
 
 .relay-status.off {
-    background: #cf6679;
+    background: #666;
     color: white;
 }
 
-.button-group {
-    display: flex;
-    gap: 10px;
-}
-
-button {
-    flex: 1;
-    padding: 15px;
+.btn-toggle {
+    width: 100%;
+    padding: 12px;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 1em;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.2s;
     text-transform: uppercase;
-    letter-spacing: 1px;
 }
 
-.btn-on {
+.btn-toggle.state-on {
     background: linear-gradient(135deg, #03dac6 0%, #00b8a9 100%);
     color: #000;
-    box-shadow: 0 4px 15px rgba(3, 218, 198, 0.3);
 }
 
-.btn-on:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(3, 218, 198, 0.4);
-}
-
-.btn-on:active {
-    transform: translateY(0);
-}
-
-.btn-off {
+.btn-toggle.state-off {
     background: #333;
     color: #ccc;
     border: 2px solid #555;
 }
 
-.btn-off:hover {
-    background: #444;
-    border-color: #666;
+.btn-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(3, 218, 198, 0.3);
 }
 
-.info {
+.btn-toggle:active {
+    transform: translateY(0);
+}
+
+.no-devices {
     text-align: center;
-    font-size: 0.85em;
+    padding: 40px;
     color: #666;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid #333;
-}
-
-.loading {
-    text-align: center;
-    color: #03dac6;
-    margin: 20px 0;
-    font-size: 0.9em;
-}
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    font-size: 1.1em;
 }
 
 .error-message {
@@ -179,178 +252,395 @@ button:disabled {
     border-radius: 8px;
     margin-bottom: 15px;
     text-align: center;
-    font-size: 0.9em;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.mode-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.7em;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.mode-mqtt {
+    background: #2196F3;
+    color: white;
+}
+
+.mode-local {
+    background: #ff9800;
+    color: white;
 }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🎛️ ESP01 Röle Kontrol</h2>
+    <h1>🎛️ ESP01 Merkezi Kontrol</h1>
     
-    <div class="input-group">
-        <label>📝 Cihaz Adı:</label>
-        <input type="text" id="deviceName" placeholder="Örn: Salon, Mutfak" value="Salon">
+    <div id="mqttStatus" class="mqtt-status connecting">
+        ⏳ MQTT Broker'a bağlanıyor...
     </div>
-
-    <div class="input-group">
-        <label>🌐 IP Adresi:</label>
-        <input type="text" id="deviceIP" placeholder="192.168.1.100" value="192.168.1.100">
-    </div>
-
-    <div id="errorMessage" style="display:none" class="error-message"></div>
-
-    <div class="relay-section">
-        <div class="relay-header">
-            <div class="relay-label">Röle 1</div>
-            <div id="status1" class="relay-status">-</div>
+    
+    <!-- Cihaz Ekleme Bölümü -->
+    <div class="add-device-section">
+        <h3>➕ Yeni Cihaz Ekle</h3>
+        <div id="addError" class="error-message" style="display:none"></div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>📝 Cihaz Adı:</label>
+                <input type="text" id="newDeviceName" placeholder="Örn: Salon, Mutfak">
+            </div>
+            <div class="input-group">
+                <label>🌐 IP Adresi (Opsiyonel - Yerel kontrol için):</label>
+                <input type="text" id="newDeviceIP" placeholder="192.168.1.100">
+            </div>
+            <div class="input-group">
+                <label>🎯 Kontrol Modu:</label>
+                <select id="newDeviceMode">
+                    <option value="mqtt">MQTT (Dışarıdan Erişim)</option>
+                    <option value="local">HTTP (Sadece Yerel Ağ)</option>
+                    <option value="both">İkisi de (Hybrid)</option>
+                </select>
+            </div>
         </div>
-        <div class="button-group">
-            <button class="btn-on" onclick="control(1, 'on')">✅ AÇ</button>
-            <button class="btn-off" onclick="control(1, 'off')">⭕ KAPAT</button>
-        </div>
+        <button class="btn-add" onclick="addDevice()">➕ Cihaz Ekle</button>
     </div>
 
-    <div class="relay-section">
-        <div class="relay-header">
-            <div class="relay-label">Röle 2</div>
-            <div id="status2" class="relay-status">-</div>
-        </div>
-        <div class="button-group">
-            <button class="btn-on" onclick="control(2, 'on')">✅ AÇ</button>
-            <button class="btn-off" onclick="control(2, 'off')">⭕ KAPAT</button>
-        </div>
-    </div>
-
-    <div class="info">
-        💡 IP adresini kontrol edin<br>
-        Cihaz aynı ağda olmalı
-    </div>
+    <!-- Cihazlar Grid -->
+    <div id="devicesContainer" class="devices-grid"></div>
 </div>
 
 <script>
-// Durum güncelleme
-async function updateStatus() {
-    const ip = document.getElementById('deviceIP').value.trim();
-    if (!ip) return;
+// MQTT Bağlantısı
+const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+let mqttClient = null;
 
-    try {
-        const response = await fetch(`http://${ip}/status`);
-        if (response.ok) {
-            const data = await response.json();
-            
-            // Röle 1
-            const status1 = document.getElementById('status1');
-            if (data.r1_state === 'ON') {
-                status1.textContent = '🟢 AÇIK';
-                status1.className = 'relay-status on';
-            } else {
-                status1.textContent = '🔴 KAPALI';
-                status1.className = 'relay-status off';
-            }
-            
-            // Röle 2
-            const status2 = document.getElementById('status2');
-            if (data.r2_state === 'ON') {
-                status2.textContent = '🟢 AÇIK';
-                status2.className = 'relay-status on';
-            } else {
-                status2.textContent = '🔴 KAPALI';
-                status2.className = 'relay-status off';
-            }
-            
-            hideError();
-        }
-    } catch (error) {
-        console.error('Durum alınamadı:', error);
-    }
-}
-
-// Röle kontrolü
-async function control(relay, action) {
-    const deviceName = document.getElementById('deviceName').value.trim();
-    const ip = document.getElementById('deviceIP').value.trim();
-    
-    // Validasyon
-    if (!deviceName) {
-        showError('❌ Lütfen cihaz adı girin!');
-        return;
-    }
-    
-    if (!ip) {
-        showError('❌ Lütfen IP adresi girin!');
-        return;
-    }
-    
-    // IP formatı kontrolü (basit)
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipPattern.test(ip)) {
-        showError('❌ Geçersiz IP adresi formatı!');
-        return;
-    }
-
-    // Butonları devre dışı bırak
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(btn => btn.disabled = true);
-
-    try {
-        const url = `http://${ip}/control?id=${relay}&action=${action}`;
-        console.log(`📤 Komut gönderiliyor: ${deviceName} - Röle ${relay} → ${action.toUpperCase()}`);
-        
-        const response = await fetch(url, {
-            method: 'GET',
-            mode: 'no-cors' // CORS hatası için
-        });
-        
-        // Başarılı
-        console.log(`✅ Komut gönderildi: ${deviceName} - Röle ${relay} → ${action.toUpperCase()}`);
-        showSuccess(relay, action);
-        
-        // Durum güncelle
-        setTimeout(updateStatus, 500);
-        
-    } catch (error) {
-        console.error('❌ Hata:', error);
-        showError(`❌ Bağlantı hatası: ${deviceName} (${ip})`);
-    } finally {
-        // Butonları tekrar aktif et
-        buttons.forEach(btn => btn.disabled = false);
-    }
-}
-
-// Görsel feedback - başarılı
-function showSuccess(relay, action) {
-    const statusDiv = document.getElementById(`status${relay}`);
-    statusDiv.textContent = action === 'on' ? '🟢 AÇILIYOR...' : '🔴 KAPANIYOR...';
-    statusDiv.className = action === 'on' ? 'relay-status on' : 'relay-status off';
-}
-
-// Hata mesajı göster
-function showError(message) {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    
-    setTimeout(() => {
-        errorDiv.style.display = 'none';
-    }, 3000);
-}
-
-// Hata mesajını gizle
-function hideError() {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.style.display = 'none';
-}
-
-// Sayfa yüklendiğinde durum güncelle
-window.onload = () => {
-    updateStatus();
-    // Her 3 saniyede bir durum güncelle
-    setInterval(updateStatus, 3000);
+// MQTT Topic'leri (ESP32 kodunuzdaki ile AYNI olmalı)
+const TOPICS = {
+    relay1Set: 'nejat/relay/1/set',
+    relay2Set: 'nejat/relay/2/set',
+    relay1State: 'nejat/relay/1/state',
+    relay2State: 'nejat/relay/2/state',
+    hubOnline: 'nejat/hub/online'
 };
 
-// IP değiştiğinde durum güncelle
-document.getElementById('deviceIP').addEventListener('change', updateStatus);
+// Cihazlar listesi
+let devices = [];
+
+// MQTT Bağlan
+function connectMQTT() {
+    updateMQTTStatus('connecting');
+    
+    mqttClient = mqtt.connect(MQTT_BROKER, {
+        clientId: 'WebClient_' + Math.random().toString(16).substr(2, 8),
+        clean: true,
+        reconnectPeriod: 5000
+    });
+    
+    mqttClient.on('connect', () => {
+        console.log('✅ MQTT Broker\'a bağlandı');
+        updateMQTTStatus('connected');
+        
+        // Topic'lere abone ol
+        mqttClient.subscribe(TOPICS.relay1State);
+        mqttClient.subscribe(TOPICS.relay2State);
+        mqttClient.subscribe(TOPICS.hubOnline);
+    });
+    
+    mqttClient.on('error', (err) => {
+        console.error('❌ MQTT Hatası:', err);
+        updateMQTTStatus('disconnected');
+    });
+    
+    mqttClient.on('close', () => {
+        console.log('🔌 MQTT Bağlantısı kesildi');
+        updateMQTTStatus('disconnected');
+    });
+    
+    // Gelen mesajları dinle
+    mqttClient.on('message', (topic, message) => {
+        const msg = message.toString();
+        console.log(`📩 ${topic}: ${msg}`);
+        
+        // Röle durumlarını güncelle
+        if (topic === TOPICS.relay1State) {
+            updateRelayStatusFromMQTT(1, msg === '1' ? 'ON' : 'OFF');
+        } else if (topic === TOPICS.relay2State) {
+            updateRelayStatusFromMQTT(2, msg === '1' ? 'ON' : 'OFF');
+        }
+    });
+}
+
+// MQTT Durum Güncelle
+function updateMQTTStatus(status) {
+    const statusEl = document.getElementById('mqttStatus');
+    if (status === 'connected') {
+        statusEl.className = 'mqtt-status connected';
+        statusEl.textContent = '✅ MQTT Bağlı - Dışarıdan Kontrol Aktif';
+    } else if (status === 'disconnected') {
+        statusEl.className = 'mqtt-status disconnected';
+        statusEl.textContent = '❌ MQTT Bağlantısı Kesildi - Sadece Yerel Kontrol';
+    } else {
+        statusEl.className = 'mqtt-status connecting';
+        statusEl.textContent = '⏳ MQTT Broker\'a bağlanıyor...';
+    }
+}
+
+// MQTT'den gelen röle durumunu güncelle
+function updateRelayStatusFromMQTT(relay, state) {
+    devices.forEach((device, index) => {
+        if (device.mode === 'mqtt' || device.mode === 'both') {
+            device[`r${relay}_state`] = state;
+            updateUI(index, relay, state);
+        }
+    });
+}
+
+// Sayfa yüklendiğinde
+window.onload = () => {
+    loadDevices();
+    renderDevices();
+    connectMQTT();
+    
+    // Yerel cihazlar için durum güncellemesi
+    setInterval(updateLocalDevices, 5000);
+};
+
+// Cihazları yükle
+function loadDevices() {
+    const saved = localStorage.getItem('esp_devices_mqtt');
+    if (saved) {
+        devices = JSON.parse(saved);
+    }
+}
+
+// Cihazları kaydet
+function saveDevices() {
+    localStorage.setItem('esp_devices_mqtt', JSON.stringify(devices));
+}
+
+// Yeni cihaz ekle
+function addDevice() {
+    const name = document.getElementById('newDeviceName').value.trim();
+    const ip = document.getElementById('newDeviceIP').value.trim();
+    const mode = document.getElementById('newDeviceMode').value;
+    
+    if (!name) {
+        showAddError('❌ Lütfen cihaz adı girin!');
+        return;
+    }
+    
+    if ((mode === 'local' || mode === 'both') && !ip) {
+        showAddError('❌ Yerel kontrol için IP adresi gerekli!');
+        return;
+    }
+    
+    if (ip) {
+        const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+        if (!ipPattern.test(ip)) {
+            showAddError('❌ Geçersiz IP adresi formatı!');
+            return;
+        }
+    }
+    
+    if (devices.some(d => d.name === name)) {
+        showAddError('❌ Bu isimde bir cihaz zaten var!');
+        return;
+    }
+    
+    devices.push({
+        name: name,
+        ip: ip || '',
+        mode: mode,
+        r1_state: 'OFF',
+        r2_state: 'OFF'
+    });
+    
+    saveDevices();
+    renderDevices();
+    
+    document.getElementById('newDeviceName').value = '';
+    document.getElementById('newDeviceIP').value = '';
+    
+    console.log(`✅ Cihaz eklendi: ${name} (${mode.toUpperCase()} modu)`);
+}
+
+// Cihaz sil
+function deleteDevice(index) {
+    const device = devices[index];
+    if (confirm(`"${device.name}" cihazını silmek istediğinize emin misiniz?`)) {
+        devices.splice(index, 1);
+        saveDevices();
+        renderDevices();
+    }
+}
+
+// Cihazları render et
+function renderDevices() {
+    const container = document.getElementById('devicesContainer');
+    
+    if (devices.length === 0) {
+        container.innerHTML = '<div class="no-devices">📱 Henüz cihaz eklenmedi.<br>Yukarıdan yeni cihaz ekleyin.</div>';
+        return;
+    }
+    
+    container.innerHTML = devices.map((device, index) => {
+        const modeBadge = device.mode === 'mqtt' ? 'MQTT' : 
+                         device.mode === 'local' ? 'YEREL' : 'HYBRİD';
+        const modeClass = device.mode === 'mqtt' ? 'mode-mqtt' : 'mode-local';
+        
+        return `
+        <div class="device-card">
+            <div class="device-header">
+                <div>
+                    <div class="device-name">
+                        ${device.name}
+                        <span class="mode-badge ${modeClass}">${modeBadge}</span>
+                    </div>
+                    <div class="device-info">
+                        ${device.ip ? '📍 ' + device.ip : '📡 MQTT Kontrol'}
+                    </div>
+                </div>
+                <button class="btn-delete" onclick="deleteDevice(${index})">🗑️</button>
+            </div>
+            
+            <div class="relay-item">
+                <div class="relay-header">
+                    <span class="relay-label">Röle 1</span>
+                    <span id="status_${index}_1" class="relay-status">-</span>
+                </div>
+                <button id="btn_${index}_1" class="btn-toggle state-off" onclick="toggleRelay(${index}, 1)">
+                    🟢 AÇ
+                </button>
+            </div>
+            
+            <div class="relay-item">
+                <div class="relay-header">
+                    <span class="relay-label">Röle 2</span>
+                    <span id="status_${index}_2" class="relay-status">-</span>
+                </div>
+                <button id="btn_${index}_2" class="btn-toggle state-off" onclick="toggleRelay(${index}, 2)">
+                    🟢 AÇ
+                </button>
+            </div>
+        </div>
+    `}).join('');
+    
+    updateLocalDevices();
+}
+
+// Tek butonla toggle
+async function toggleRelay(deviceIndex, relay) {
+    const device = devices[deviceIndex];
+    const currentState = device[`r${relay}_state`];
+    const newAction = currentState === 'ON' ? 'OFF' : 'ON';
+    
+    const btn = document.getElementById(`btn_${deviceIndex}_${relay}`);
+    btn.disabled = true;
+    
+    // MQTT ile kontrol
+    if (device.mode === 'mqtt' || device.mode === 'both') {
+        if (mqttClient && mqttClient.connected) {
+            const topic = relay === 1 ? TOPICS.relay1Set : TOPICS.relay2Set;
+            const message = newAction === 'ON' ? '1' : '0';
+            
+            mqttClient.publish(topic, message, { qos: 1 }, (err) => {
+                if (!err) {
+                    console.log(`✅ MQTT: ${device.name} - Röle ${relay} → ${newAction}`);
+                    device[`r${relay}_state`] = newAction;
+                    updateUI(deviceIndex, relay, newAction);
+                } else {
+                    console.error('❌ MQTT Gönderim hatası:', err);
+                    alert('MQTT komutu gönderilemedi!');
+                }
+                btn.disabled = false;
+            });
+        } else {
+            alert('❌ MQTT bağlantısı yok!');
+            btn.disabled = false;
+        }
+    }
+    
+    // HTTP ile kontrol (yerel)
+    if (device.mode === 'local' || device.mode === 'both') {
+        if (device.ip) {
+            try {
+                const action = newAction === 'ON' ? 'on' : 'off';
+                const url = `http://${device.ip}/control?id=${relay}&action=${action}`;
+                await fetch(url, { method: 'GET', mode: 'no-cors' });
+                console.log(`✅ HTTP: ${device.name} - Röle ${relay} → ${newAction}`);
+                
+                setTimeout(() => updateLocalDeviceStatus(deviceIndex), 500);
+            } catch (error) {
+                console.error('❌ HTTP Hatası:', error);
+            }
+        }
+        btn.disabled = false;
+    }
+}
+
+// Yerel cihaz durumu güncelle
+async function updateLocalDeviceStatus(deviceIndex) {
+    const device = devices[deviceIndex];
+    if (!device.ip || (device.mode !== 'local' && device.mode !== 'both')) return;
+    
+    try {
+        const response = await fetch(`http://${device.ip}/status`);
+        if (response.ok) {
+            const data = await response.json();
+            device.r1_state = data.r1_state || 'OFF';
+            device.r2_state = data.r2_state || 'OFF';
+            updateUI(deviceIndex, 1, device.r1_state);
+            updateUI(deviceIndex, 2, device.r2_state);
+        }
+    } catch (error) {
+        console.log(`⚠️ ${device.name} yerel bağlantı hatası`);
+    }
+}
+
+// Tüm yerel cihazları güncelle
+async function updateLocalDevices() {
+    for (let i = 0; i < devices.length; i++) {
+        if (devices[i].mode === 'local' || devices[i].mode === 'both') {
+            await updateLocalDeviceStatus(i);
+        }
+    }
+}
+
+// UI güncelle
+function updateUI(deviceIndex, relay, state) {
+    const statusEl = document.getElementById(`status_${deviceIndex}_${relay}`);
+    const btnEl = document.getElementById(`btn_${deviceIndex}_${relay}`);
+    
+    if (!statusEl || !btnEl) return;
+    
+    if (state === 'ON') {
+        statusEl.textContent = '🟢 AÇIK';
+        statusEl.className = 'relay-status on';
+        btnEl.textContent = '🔴 KAPAT';
+        btnEl.className = 'btn-toggle state-on';
+    } else {
+        statusEl.textContent = '⚫ KAPALI';
+        statusEl.className = 'relay-status off';
+        btnEl.textContent = '🟢 AÇ';
+        btnEl.className = 'btn-toggle state-off';
+    }
+}
+
+// Hata mesajı
+function showAddError(message) {
+    const errorDiv = document.getElementById('addError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => errorDiv.style.display = 'none', 3000);
+}
 </script>
 
 </body>
