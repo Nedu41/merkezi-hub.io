@@ -2,645 +2,335 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP01 MQTT Kontrol</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<title>Merkezi Hub v6.5 - IP Bazlı MQTT Kontrol</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: #fff;
-    min-height: 100vh;
-    padding: 20px;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-h1 {
-    text-align: center;
-    color: #03dac6;
-    margin-bottom: 10px;
-    font-size: 2em;
-}
-
-.mqtt-status {
-    text-align: center;
-    padding: 12px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-    font-weight: bold;
-    font-size: 1.1em;
-}
-
-.mqtt-status.connected {
-    background: #4CAF50;
-    color: white;
-}
-
-.mqtt-status.disconnected {
-    background: #cf6679;
-    color: white;
-}
-
-.mqtt-status.connecting {
-    background: #ff9800;
-    color: white;
-}
-
-.add-device-section {
-    background: rgba(30, 30, 30, 0.95);
-    padding: 25px;
-    border-radius: 15px;
-    margin-bottom: 30px;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.add-device-section h3 {
-    color: #03dac6;
-    margin-bottom: 15px;
-}
-
-.input-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-.input-group {
-    flex: 1;
-    min-width: 200px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 5px;
-    color: #aaa;
-    font-size: 0.85em;
-}
-
-.input-group input, .input-group select {
-    width: 100%;
-    padding: 10px;
-    background: #252525;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 8px;
-    font-size: 1em;
-}
-
-.input-group input:focus, .input-group select:focus {
-    outline: none;
-    border-color: #03dac6;
-}
-
-.btn-add {
-    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-    color: white;
-    padding: 12px 30px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-add:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
-}
-
-.devices-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-}
-
-.device-card {
-    background: rgba(30, 30, 30, 0.95);
-    padding: 20px;
-    border-radius: 15px;
-    border: 1px solid rgba(255,255,255,0.1);
-    position: relative;
-}
-
-.device-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #333;
-}
-
-.device-name {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #03dac6;
-}
-
-.device-info {
-    font-size: 0.75em;
-    color: #888;
-    margin-top: 3px;
-}
-
-.btn-delete {
-    background: #cf6679;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.85em;
-}
-
-.btn-delete:hover {
-    background: #b00020;
-}
-
-.relay-item {
-    background: #1a1a1a;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-}
-
-.relay-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.relay-label {
-    font-weight: bold;
-    color: #fff;
-}
-
-.relay-status {
-    font-size: 0.85em;
-    padding: 3px 10px;
-    border-radius: 12px;
-    background: #333;
-    color: #aaa;
-}
-
-.relay-status.on {
-    background: #4CAF50;
-    color: white;
-}
-
-.relay-status.off {
-    background: #666;
-    color: white;
-}
-
-.btn-toggle {
-    width: 100%;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-transform: uppercase;
-}
-
-.btn-toggle.state-on {
-    background: linear-gradient(135deg, #03dac6 0%, #00b8a9 100%);
-    color: #000;
-}
-
-.btn-toggle.state-off {
-    background: #333;
-    color: #ccc;
-    border: 2px solid #555;
-}
-
-.btn-toggle:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(3, 218, 198, 0.3);
-}
-
-.btn-toggle:active {
-    transform: translateY(0);
-}
-
-.no-devices {
-    text-align: center;
-    padding: 40px;
-    color: #666;
-    font-size: 1.1em;
-}
-
-.error-message {
-    background: #cf6679;
-    color: white;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    text-align: center;
-}
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.mode-badge {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 0.7em;
-    font-weight: bold;
-    margin-left: 5px;
-}
-
-.mode-mqtt {
-    background: #2196F3;
-    color: white;
-}
-
-.mode-local {
-    background: #ff9800;
-    color: white;
-}
+body { font-family: Arial; background:#0f0f0f; color:#eee; margin:0; }
+header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; }
+.container { padding:10px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; padding:10px; }
+.card { background:#1b1b1b; border-radius:14px; padding:16px; border:1px solid #333; box-shadow:0 0 8px #000; }
+.card h3 { margin:0 0 8px 0; font-size:18px; color:#00e5ff; }
+.card h4 { margin:5px 0; font-size:13px; color:#aaa; }
+.btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; margin:5px 0; }
+.on { background:#00e676; color:#000; }
+.off { background:#333; color:#ccc; }
+.groupBox { margin:12px 0; padding:10px; background:#111; border-radius:10px; border:1px solid #333; }
+.groupBox h2 { margin:0 0 10px 0; font-size:18px; color:#ff9800; }
+.addBox { background:#111; padding:12px; border-radius:10px; margin:10px; border:1px solid #333; }
+.addBox input { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #555; background:#222; color:#fff; }
+.addBox button { width:100%; padding:12px; margin-top:5px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:15px; }
+.all-buttons { display:flex; gap:12px; padding:12px; }
+.all-buttons button { flex:1; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; }
+.topic-info { font-size:11px; color:#888; background:#111; padding:4px 8px; border-radius:4px; margin:5px 0; font-family:monospace; }
 </style>
 </head>
 <body>
 
+<header>MERKEZİ HUB v6.5 (IP Bazlı MQTT Kontrol)</header>
 <div class="container">
-    <h1>🎛️ ESP01 Merkezi Kontrol</h1>
-    
-    <div id="mqttStatus" class="mqtt-status connecting">
-        ⏳ MQTT Broker'a bağlanıyor...
-    </div>
-    
-    <!-- Cihaz Ekleme Bölümü -->
-    <div class="add-device-section">
-        <h3>➕ Yeni Cihaz Ekle</h3>
-        <div id="addError" class="error-message" style="display:none"></div>
-        <div class="input-row">
-            <div class="input-group">
-                <label>📝 Cihaz Adı:</label>
-                <input type="text" id="newDeviceName" placeholder="Örn: Salon, Mutfak">
-            </div>
-            <div class="input-group">
-                <label>🌐 IP Adresi (Opsiyonel - Yerel kontrol için):</label>
-                <input type="text" id="newDeviceIP" placeholder="192.168.1.100">
-            </div>
-            <div class="input-group">
-                <label>🎯 Kontrol Modu:</label>
-                <select id="newDeviceMode">
-                    <option value="mqtt">MQTT (Dışarıdan Erişim)</option>
-                    <option value="local">HTTP (Sadece Yerel Ağ)</option>
-                    <option value="both">İkisi de (Hybrid)</option>
-                </select>
-            </div>
-        </div>
-        <button class="btn-add" onclick="addDevice()">➕ Cihaz Ekle</button>
-    </div>
 
-    <!-- Cihazlar Grid -->
-    <div id="devicesContainer" class="devices-grid"></div>
+<!-- TOPLU KONTROL -->
+<div class="all-buttons">
+  <button onclick="turnAll(1)" style="background:#00e676;color:#000">TÜMÜNÜ AÇ</button>
+  <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
+</div>
+
+<!-- GRUPLAR -->
+<div id="groupArea"></div>
+
+<!-- CİHAZ EKLEME ALANI -->
+<div class="addBox">
+  <h3>Yeni Cihaz Ekle</h3>
+  <input id="devName" placeholder="Cihaz Adı (örn: Bahçe Lamba)">
+  <input id="devIP" placeholder="IP Adresi (örn: 192.168.1.113)">
+  <input id="devGroup" placeholder="Grup (örn: Bahçe)">
+  <button onclick="addDevice()">CİHAZI EKLE</button>
+  
+  <div style="margin-top:15px; padding:10px; background:#222; border-radius:8px;">
+    <h4 style="margin:0 0 5px 0; color:#bb86fc;">📌 Otomatik Topic Formatı:</h4>
+    <div style="font-size:11px; color:#aaa;">
+      <div>Set Topic: <code>ip/[IP]/set</code></div>
+      <div>State Topic: <code>ip/[IP]/state</code></div>
+      <div>Örnek: <code>ip/192.168.1.113/set</code></div>
+    </div>
+  </div>
+</div>
+
+<!-- ANA CİHAZ GRIDİ -->
+<div id="deviceGrid" class="grid"></div>
+
 </div>
 
 <script>
-// MQTT Bağlantısı
-const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
-let mqttClient = null;
+//--------------------------------------------------
+// MQTT BAĞLANTI
+//--------------------------------------------------
+const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-// MQTT Topic'leri (ESP32 kodunuzdaki ile AYNI olmalı)
-const TOPICS = {
-    relay1Set: 'nejat/relay/1/set',
-    relay2Set: 'nejat/relay/2/set',
-    relay1State: 'nejat/relay/1/state',
-    relay2State: 'nejat/relay/2/state',
-    hubOnline: 'nejat/hub/online'
-};
+//--------------------------------------------------
+// CİHAZ VERİTABANI (JSON)
+//--------------------------------------------------
+let devices = JSON.parse(localStorage.getItem("devices") || "[]");
 
-// Cihazlar listesi
-let devices = [];
+//--------------------------------------------------
+// CİHAZ EKLE (Otomatik Topic Oluştur)
+//--------------------------------------------------
+function addDevice(){
+    let name = document.getElementById('devName').value.trim();
+    let ip = document.getElementById('devIP').value.trim();
+    let group = document.getElementById('devGroup').value.trim() || "Genel";
 
-// MQTT Bağlan
-function connectMQTT() {
-    updateMQTTStatus('connecting');
-    
-    mqttClient = mqtt.connect(MQTT_BROKER, {
-        clientId: 'WebClient_' + Math.random().toString(16).substr(2, 8),
-        clean: true,
-        reconnectPeriod: 5000
+    if(!name || !ip){ 
+        alert("Cihaz adı ve IP adresi gereklidir!"); 
+        return; 
+    }
+
+    // IP'den otomatik topic oluştur
+    let ipFormatted = ip.replace(/\./g, '_'); // 192.168.1.113 -> 192_168_1_113
+    let topicSet = `ip/${ipFormatted}/set`;
+    let topicState = `ip/${ipFormatted}/state`;
+
+    devices.push({ 
+        name, 
+        ip, 
+        ipFormatted, // Topic için formatlanmış IP
+        topicSet,    // Otomatik oluşturuldu
+        topicState,  // Otomatik oluşturuldu
+        group, 
+        status: "unknown" 
     });
     
-    mqttClient.on('connect', () => {
-        console.log('✅ MQTT Broker\'a bağlandı');
-        updateMQTTStatus('connected');
+    localStorage.setItem("devices", JSON.stringify(devices));
+
+    // Alanları temizle
+    document.getElementById('devName').value = "";
+    document.getElementById('devIP').value = "";
+    document.getElementById('devGroup').value = "";
+
+    client.subscribe(topicState);
+    buildUI();
+}
+
+//--------------------------------------------------
+// ARAYÜZ OLUŞTUR
+//--------------------------------------------------
+function buildUI(){
+    const grid = document.getElementById("deviceGrid");
+    const groupArea = document.getElementById("groupArea");
+
+    grid.innerHTML = "";
+    groupArea.innerHTML = "";
+
+    // GRUPLARI TOPLA
+    const groups = {};
+    devices.forEach(d => {
+        if(!groups[d.group]) groups[d.group] = [];
+        groups[d.group].push(d);
+    });
+
+    // GRUP ARAYÜZÜ
+    for(const g in groups){
+        const box = document.createElement("div");
+        box.className = "groupBox";
+        box.innerHTML = `<h2>${g} (${groups[g].length} cihaz)</h2>`;
         
-        // Topic'lere abone ol
-        mqttClient.subscribe(TOPICS.relay1State);
-        mqttClient.subscribe(TOPICS.relay2State);
-        mqttClient.subscribe(TOPICS.hubOnline);
-    });
-    
-    mqttClient.on('error', (err) => {
-        console.error('❌ MQTT Hatası:', err);
-        updateMQTTStatus('disconnected');
-    });
-    
-    mqttClient.on('close', () => {
-        console.log('🔌 MQTT Bağlantısı kesildi');
-        updateMQTTStatus('disconnected');
-    });
-    
-    // Gelen mesajları dinle
-    mqttClient.on('message', (topic, message) => {
-        const msg = message.toString();
-        console.log(`📩 ${topic}: ${msg}`);
-        
-        // Röle durumlarını güncelle
-        if (topic === TOPICS.relay1State) {
-            updateRelayStatusFromMQTT(1, msg === '1' ? 'ON' : 'OFF');
-        } else if (topic === TOPICS.relay2State) {
-            updateRelayStatusFromMQTT(2, msg === '1' ? 'ON' : 'OFF');
-        }
-    });
-}
-
-// MQTT Durum Güncelle
-function updateMQTTStatus(status) {
-    const statusEl = document.getElementById('mqttStatus');
-    if (status === 'connected') {
-        statusEl.className = 'mqtt-status connected';
-        statusEl.textContent = '✅ MQTT Bağlı - Dışarıdan Kontrol Aktif';
-    } else if (status === 'disconnected') {
-        statusEl.className = 'mqtt-status disconnected';
-        statusEl.textContent = '❌ MQTT Bağlantısı Kesildi - Sadece Yerel Kontrol';
-    } else {
-        statusEl.className = 'mqtt-status connecting';
-        statusEl.textContent = '⏳ MQTT Broker\'a bağlanıyor...';
+        // Grup kontrol butonları
+        const groupButtons = document.createElement("div");
+        groupButtons.className = "all-buttons";
+        groupButtons.style.padding = "5px 0";
+        groupButtons.innerHTML = `
+            <button onclick="turnGroup('${g}', 1)" style="background:#00e676;color:#000; padding:8px; font-size:14px">
+                ${g} Grubunu AÇ
+            </button>
+            <button onclick="turnGroup('${g}', 0)" style="background:#ff5252;color:#fff; padding:8px; font-size:14px">
+                ${g} Grubunu KAPAT
+            </button>
+        `;
+        box.appendChild(groupButtons);
+        groupArea.appendChild(box);
     }
-}
 
-// MQTT'den gelen röle durumunu güncelle
-function updateRelayStatusFromMQTT(relay, state) {
-    devices.forEach((device, index) => {
-        if (device.mode === 'mqtt' || device.mode === 'both') {
-            device[`r${relay}_state`] = state;
-            updateUI(index, relay, state);
-        }
+    // CİHAZ KARTLARI
+    devices.forEach((d, index) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${d.name}</h3>
+          <h4>📡 IP: ${d.ip}</h4>
+          <h4>📊 Durum: <span id="status${index}" style="color:${d.status === "1" ? "#00e676" : "#ff5252"}">
+            ${d.status === "1" ? "AÇIK" : d.status === "0" ? "KAPALI" : "BEKLENİYOR"}
+          </span></h4>
+          
+          <div class="topic-info">
+            <div><strong>Set Topic:</strong> ${d.topicSet}</div>
+            <div><strong>State Topic:</strong> ${d.topicState}</div>
+          </div>
+          
+          <button id="btn${index}" class="btn ${d.status === "1" ? 'on' : 'off'}" 
+                  onclick="toggle(${index})">
+            ${d.status === "1" ? "AÇIK" : d.status === "0" ? "KAPALI" : "..."}
+          </button>
+          
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            <button onclick="deleteDevice(${index})" 
+                    style="flex:1; padding:8px; background:#ff5252; color:#fff; border:none; border-radius:8px; font-size:12px;">
+              🗑️ Sil
+            </button>
+            <button onclick="copyTopic('${d.topicSet}')" 
+                    style="flex:1; padding:8px; background:#2196f3; color:#fff; border:none; border-radius:8px; font-size:12px;">
+              📋 Topic Kopyala
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
     });
 }
 
-// Sayfa yüklendiğinde
-window.onload = () => {
-    loadDevices();
-    renderDevices();
-    connectMQTT();
-    
-    // Yerel cihazlar için durum güncellemesi
-    setInterval(updateLocalDevices, 5000);
-};
-
-// Cihazları yükle
-function loadDevices() {
-    const saved = localStorage.getItem('esp_devices_mqtt');
-    if (saved) {
-        devices = JSON.parse(saved);
-    }
-}
-
-// Cihazları kaydet
-function saveDevices() {
-    localStorage.setItem('esp_devices_mqtt', JSON.stringify(devices));
-}
-
-// Yeni cihaz ekle
-function addDevice() {
-    const name = document.getElementById('newDeviceName').value.trim();
-    const ip = document.getElementById('newDeviceIP').value.trim();
-    const mode = document.getElementById('newDeviceMode').value;
-    
-    if (!name) {
-        showAddError('❌ Lütfen cihaz adı girin!');
-        return;
-    }
-    
-    if ((mode === 'local' || mode === 'both') && !ip) {
-        showAddError('❌ Yerel kontrol için IP adresi gerekli!');
-        return;
-    }
-    
-    if (ip) {
-        const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-        if (!ipPattern.test(ip)) {
-            showAddError('❌ Geçersiz IP adresi formatı!');
-            return;
-        }
-    }
-    
-    if (devices.some(d => d.name === name)) {
-        showAddError('❌ Bu isimde bir cihaz zaten var!');
-        return;
-    }
-    
-    devices.push({
-        name: name,
-        ip: ip || '',
-        mode: mode,
-        r1_state: 'OFF',
-        r2_state: 'OFF'
+//--------------------------------------------------
+// MQTT BAĞLANDIĞINDA
+//--------------------------------------------------
+client.on("connect", () => {
+    console.log("MQTT Bağlandı");
+    devices.forEach(d => {
+        client.subscribe(d.topicState);
+        // Bağlantı kurulunca durum sorgula
+        client.publish(d.topicSet + "/get", "");
     });
-    
-    saveDevices();
-    renderDevices();
-    
-    document.getElementById('newDeviceName').value = '';
-    document.getElementById('newDeviceIP').value = '';
-    
-    console.log(`✅ Cihaz eklendi: ${name} (${mode.toUpperCase()} modu)`);
-}
+});
 
-// Cihaz sil
-function deleteDevice(index) {
-    const device = devices[index];
-    if (confirm(`"${device.name}" cihazını silmek istediğinize emin misiniz?`)) {
-        devices.splice(index, 1);
-        saveDevices();
-        renderDevices();
-    }
-}
+//--------------------------------------------------
+// MQTT STATE MESAJLARI
+//--------------------------------------------------
+client.on("message", (topic, msg) => {
+    const val = msg.toString().trim();
+    console.log(`MQTT Mesaj: ${topic} = ${val}`);
 
-// Cihazları render et
-function renderDevices() {
-    const container = document.getElementById('devicesContainer');
-    
-    if (devices.length === 0) {
-        container.innerHTML = '<div class="no-devices">📱 Henüz cihaz eklenmedi.<br>Yukarıdan yeni cihaz ekleyin.</div>';
-        return;
-    }
-    
-    container.innerHTML = devices.map((device, index) => {
-        const modeBadge = device.mode === 'mqtt' ? 'MQTT' : 
-                         device.mode === 'local' ? 'YEREL' : 'HYBRİD';
-        const modeClass = device.mode === 'mqtt' ? 'mode-mqtt' : 'mode-local';
-        
-        return `
-        <div class="device-card">
-            <div class="device-header">
-                <div>
-                    <div class="device-name">
-                        ${device.name}
-                        <span class="mode-badge ${modeClass}">${modeBadge}</span>
-                    </div>
-                    <div class="device-info">
-                        ${device.ip ? '📍 ' + device.ip : '📡 MQTT Kontrol'}
-                    </div>
-                </div>
-                <button class="btn-delete" onclick="deleteDevice(${index})">🗑️</button>
-            </div>
+    devices.forEach((d, index) => {
+        if(topic === d.topicState){
+            d.status = val;
+            const btn = document.getElementById("btn" + index);
+            const statusSpan = document.getElementById("status" + index);
             
-            <div class="relay-item">
-                <div class="relay-header">
-                    <span class="relay-label">Röle 1</span>
-                    <span id="status_${index}_1" class="relay-status">-</span>
-                </div>
-                <button id="btn_${index}_1" class="btn-toggle state-off" onclick="toggleRelay(${index}, 1)">
-                    🟢 AÇ
-                </button>
-            </div>
-            
-            <div class="relay-item">
-                <div class="relay-header">
-                    <span class="relay-label">Röle 2</span>
-                    <span id="status_${index}_2" class="relay-status">-</span>
-                </div>
-                <button id="btn_${index}_2" class="btn-toggle state-off" onclick="toggleRelay(${index}, 2)">
-                    🟢 AÇ
-                </button>
-            </div>
-        </div>
-    `}).join('');
-    
-    updateLocalDevices();
-}
-
-// Tek butonla toggle
-async function toggleRelay(deviceIndex, relay) {
-    const device = devices[deviceIndex];
-    const currentState = device[`r${relay}_state`];
-    const newAction = currentState === 'ON' ? 'OFF' : 'ON';
-    
-    const btn = document.getElementById(`btn_${deviceIndex}_${relay}`);
-    btn.disabled = true;
-    
-    // MQTT ile kontrol
-    if (device.mode === 'mqtt' || device.mode === 'both') {
-        if (mqttClient && mqttClient.connected) {
-            const topic = relay === 1 ? TOPICS.relay1Set : TOPICS.relay2Set;
-            const message = newAction === 'ON' ? '1' : '0';
-            
-            mqttClient.publish(topic, message, { qos: 1 }, (err) => {
-                if (!err) {
-                    console.log(`✅ MQTT: ${device.name} - Röle ${relay} → ${newAction}`);
-                    device[`r${relay}_state`] = newAction;
-                    updateUI(deviceIndex, relay, newAction);
-                } else {
-                    console.error('❌ MQTT Gönderim hatası:', err);
-                    alert('MQTT komutu gönderilemedi!');
+            if(btn){
+                if(val === "1"){ 
+                    btn.textContent = "AÇIK"; 
+                    btn.className = "btn on"; 
                 }
-                btn.disabled = false;
-            });
-        } else {
-            alert('❌ MQTT bağlantısı yok!');
-            btn.disabled = false;
-        }
-    }
-    
-    // HTTP ile kontrol (yerel)
-    if (device.mode === 'local' || device.mode === 'both') {
-        if (device.ip) {
-            try {
-                const action = newAction === 'ON' ? 'on' : 'off';
-                const url = `http://${device.ip}/control?id=${relay}&action=${action}`;
-                await fetch(url, { method: 'GET', mode: 'no-cors' });
-                console.log(`✅ HTTP: ${device.name} - Röle ${relay} → ${newAction}`);
-                
-                setTimeout(() => updateLocalDeviceStatus(deviceIndex), 500);
-            } catch (error) {
-                console.error('❌ HTTP Hatası:', error);
+                else { 
+                    btn.textContent = "KAPALI"; 
+                    btn.className = "btn off"; 
+                }
+            }
+            
+            if(statusSpan){
+                statusSpan.textContent = val === "1" ? "AÇIK" : "KAPALI";
+                statusSpan.style.color = val === "1" ? "#00e676" : "#ff5252";
             }
         }
-        btn.disabled = false;
+    });
+});
+
+//--------------------------------------------------
+// TEK CİHAZI AÇ/KAPA
+//--------------------------------------------------
+function toggle(index){
+    const d = devices[index];
+    const btn = document.getElementById("btn" + index);
+    const currentState = d.status;
+    const newState = currentState === "1" ? "0" : "1";
+    
+    console.log(`${d.name} (${d.ip}) durumu değiştiriliyor: ${currentState} -> ${newState}`);
+    
+    // Optimistik UI güncellemesi
+    d.status = newState;
+    if(newState === "1"){ 
+        btn.textContent = "AÇIK"; 
+        btn.className = "btn on"; 
     }
+    else { 
+        btn.textContent = "KAPALI"; 
+        btn.className = "btn off"; 
+    }
+    
+    // MQTT'ye gönder
+    client.publish(d.topicSet, newState, { retain:true });
 }
 
-// Yerel cihaz durumu güncelle
-async function updateLocalDeviceStatus(deviceIndex) {
-    const device = devices[deviceIndex];
-    if (!device.ip || (device.mode !== 'local' && device.mode !== 'both')) return;
+//--------------------------------------------------
+// TÜM CİHAZLARI AÇ/KAPA
+//--------------------------------------------------
+function turnAll(state){
+    devices.forEach(d => {
+        d.status = String(state);
+        client.publish(d.topicSet, String(state), { retain:true });
+    });
     
-    try {
-        const response = await fetch(`http://${device.ip}/status`);
-        if (response.ok) {
-            const data = await response.json();
-            device.r1_state = data.r1_state || 'OFF';
-            device.r2_state = data.r2_state || 'OFF';
-            updateUI(deviceIndex, 1, device.r1_state);
-            updateUI(deviceIndex, 2, device.r2_state);
+    // UI'ı güncelle
+    setTimeout(() => buildUI(), 500);
+    alert(`Tüm cihazlar ${state ? 'açıldı' : 'kapandı'}`);
+}
+
+//--------------------------------------------------
+// GRUBA GÖRE AÇ/KAPA
+//--------------------------------------------------
+function turnGroup(groupName, state){
+    devices.forEach(d => {
+        if(d.group === groupName){
+            d.status = String(state);
+            client.publish(d.topicSet, String(state), { retain:true });
         }
-    } catch (error) {
-        console.log(`⚠️ ${device.name} yerel bağlantı hatası`);
-    }
-}
-
-// Tüm yerel cihazları güncelle
-async function updateLocalDevices() {
-    for (let i = 0; i < devices.length; i++) {
-        if (devices[i].mode === 'local' || devices[i].mode === 'both') {
-            await updateLocalDeviceStatus(i);
-        }
-    }
-}
-
-// UI güncelle
-function updateUI(deviceIndex, relay, state) {
-    const statusEl = document.getElementById(`status_${deviceIndex}_${relay}`);
-    const btnEl = document.getElementById(`btn_${deviceIndex}_${relay}`);
+    });
     
-    if (!statusEl || !btnEl) return;
-    
-    if (state === 'ON') {
-        statusEl.textContent = '🟢 AÇIK';
-        statusEl.className = 'relay-status on';
-        btnEl.textContent = '🔴 KAPAT';
-        btnEl.className = 'btn-toggle state-on';
-    } else {
-        statusEl.textContent = '⚫ KAPALI';
-        statusEl.className = 'relay-status off';
-        btnEl.textContent = '🟢 AÇ';
-        btnEl.className = 'btn-toggle state-off';
+    setTimeout(() => buildUI(), 500);
+    alert(`${groupName} grubu ${state ? 'açıldı' : 'kapandı'}`);
+}
+
+//--------------------------------------------------
+// CİHAZ SİLME
+//--------------------------------------------------
+function deleteDevice(index){
+    if(confirm(`"${devices[index].name}" cihazını silmek istiyor musunuz?`)){
+        // MQTT unsubscribe
+        const topic = devices[index].topicState;
+        client.unsubscribe(topic);
+        
+        // Listeden kaldır
+        devices.splice(index, 1);
+        localStorage.setItem("devices", JSON.stringify(devices));
+        buildUI();
     }
 }
 
-// Hata mesajı
-function showAddError(message) {
-    const errorDiv = document.getElementById('addError');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    setTimeout(() => errorDiv.style.display = 'none', 3000);
+//--------------------------------------------------
+// TOPIC KOPYALAMA
+//--------------------------------------------------
+function copyTopic(topic){
+    navigator.clipboard.writeText(topic).then(() => {
+        alert(`Topic kopyalandı: ${topic}`);
+    });
 }
+
+//--------------------------------------------------
+// BAŞLAT
+//--------------------------------------------------
+buildUI();
+
+// Hata yönetimi
+client.on("error", (error) => {
+    console.error("MQTT Error:", error);
+    alert("MQTT bağlantı hatası! Sayfayı yenileyin.");
+});
+
+// Her 20 saniyede bir durum sorgula
+setInterval(() => {
+    if(client && client.connected){
+        devices.forEach(d => {
+            client.publish(d.topicSet + "/get", "");
+        });
+    }
+}, 20000);
 </script>
 
 </body>
