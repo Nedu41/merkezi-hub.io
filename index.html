@@ -85,22 +85,23 @@ td { padding: 8px; border-bottom: 1px solid #333; }
 <div id="githubStatus" class="github-info active">GitHub: GITHUB MOD</div>
 
 <script>
-// === TÜM JS KODU (h dosyasından kopyalanmış) ===
 let DEVICES = [], STATUS = {}, CURRENT_WEATHER = {}, WEATHER_CONFIG = {};
 let lastToggleTime = 0;
 const daysName = ["Pt","Sa","Ça","Pe","Cu","Ct","Pz"];
 
-// Saat
+// Saat Göstergesi
 setInterval(() => {
     const d = new Date();
     document.getElementById('clock').innerText = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 }, 1000);
 
+// Navigasyon
 function route(path) { 
     history.pushState(null, '', path); 
     navigate(); 
 }
 
+// API Fonksiyonları
 function fetchDevices(){ 
     return fetch("/get_devices").then(r=>r.json()).then(d=>DEVICES=d); 
 }
@@ -111,6 +112,7 @@ function fetchStatus(){
         CURRENT_WEATHER = d.weather || {}; 
         WEATHER_CONFIG = d.weather_config || {}; 
         
+        // GitHub durumunu güncelle
         const githubStatus = document.getElementById('githubStatus');
         if (githubStatus) {
             githubStatus.textContent = `GitHub: GITHUB MOD`;
@@ -119,16 +121,308 @@ function fetchStatus(){
     });
 }
 
-// ... TÜM JS FONKSİYONLARI (renderControl, update, toggle, saveProg, renderSettings, renderWeather, saveWeather, refreshWeather, navigate) ...
+// renderControl
+function renderControl(){
+  let html = `<div class="grid">`;
+  if(!DEVICES.length) html += `<div style="text-align:center;width:100%;padding:20px;color:#cf6679">Cihaz bulunamadı.<br>Ayarlardan ekleyin.</div>`;
+  
+  DEVICES.forEach((dev,i)=>{
+    html += `
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center">
+            <span class="status-dot" id="dot_${i}"></span>
+            <span class="dev-name" title="${dev.ip}">${dev.name}</span>
+        </div>
+        <button class="timer-icon-btn" onclick="openSect(${i})">🕒</button>
+      </div>
 
-// KOPYALA: relay_webpage_multi.h içindeki tüm <script> içeriğini buraya yapıştır
-// (Kısaltma için buraya yazmıyorum, ama senin h dosyasındaki JS tam olarak buraya gelecek)
+      <div class="relay-row">
+        <div class="relay-label">R1</div>
+        <button class="btn off" id="b1_${i}" onclick="toggle(${i},1)">...</button>
+      </div>
+      <div class="sched-info" id="p1_${i}"></div>
 
-window.onload = function() {
-    window.onpopstate = navigate;
-    navigate();
-    setInterval(update, 2000);
-};
+      <div class="relay-row">
+        <div class="relay-label">R2</div>
+        <button class="btn off" id="b2_${i}" onclick="toggle(${i},2)">...</button>
+      </div>
+      <div class="sched-info" id="p2_${i}"></div>
+
+      <div class="section" id="sec_${i}">
+        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:10px;">
+             <label><input type="radio" name="r${i}" value="1" checked onchange="loadProgValues(${i})"> Röle 1</label>
+             <label><input type="radio" name="r${i}" value="2" onchange="loadProgValues(${i})"> Röle 2</label>
+        </div>
+        
+        <div style="display:flex;gap:5px">
+            <input type="time" id="t1_${i}" value="08:00"> <span>-</span> <input type="time" id="t2_${i}" value="18:00">
+        </div>
+
+        <div class="days">
+          ${daysName.map((d,j)=>`<input type="checkbox" id="d${i}_${j}"><label for="d${i}_${j}">${d}</label>`).join("")}
+        </div>
+        
+        <div class="action-btns">
+            <button class="btn on" id="saveProgBtn_${i}" onclick="saveProg(${i})">KAYDET</button>
+            <button class="btn off" onclick="clearProg(${i})">SİL</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById("content").innerHTML = html;
+}
+
+// update
+function update(){
+  if(location.pathname !== "/") return; 
+  fetchStatus().then(()=>{
+    DEVICES.forEach((dev,i)=>{
+      const s = STATUS[dev.name] || {r1_state:"OFFLINE",r2_state:"OFFLINE"};
+      const online = s.r1_state !== "OFFLINE";
+      const dot = document.getElementById("dot_"+i);
+      if(dot) dot.className = "status-dot " + (online ? "online-dot" : "offline-dot");
+
+      for(let r=1; r<=2; r++){
+        const state = s[`r${r}_state`] || "OFFLINE";
+        const btn = document.getElementById("b"+r+"_"+i);
+        const prog = document.getElementById("p"+r+"_"+i);
+
+        if(state === "OFFLINE"){
+           if(btn) { btn.textContent = "HATALI"; btn.className = "btn off"; btn.disabled = true; }
+        } else {
+           if(btn) {
+               btn.textContent = state === "ON" ? "AÇIK" : "KAPALI";
+               btn.className = "btn " + (state === "ON" ? "on" : "off");
+               btn.disabled = false;
+           }
+           const active = s[`sched_active_r${r}`] === "true";
+           const start = s[`sched_start_r${r}`];
+           if(prog) prog.innerText = active ? `🕒 ${start} - ${s[`sched_end_r${r}`]}` : "";
+        }
+      }
+    });
+  });
+}
+
+// openSect
+function openSect(i){ 
+    const sec = document.getElementById("sec_"+i);
+    const isVis = sec.style.display === "block";
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    if(!isVis) { sec.style.display = "block"; loadProgValues(i); }
+}
+
+// getRelay, getMask
+function getRelay(i){ return document.querySelector(`input[name="r${i}"]:checked`).value; }
+function getMask(i){ let m=0; for(let j=0;j<7;j++) if(document.getElementById("d"+i+"_"+j).checked) m|=1<<j; return m; }
+
+// toggle
+function toggle(i,r){
+  const dev = DEVICES[i]; 
+  const btn = document.getElementById("b"+r+"_"+i);
+  const originalText = btn.textContent;
+  btn.textContent = "...";
+  btn.disabled = true;
+
+  const action = originalText === "AÇIK" ? "off" : "on";
+  
+  fetch(`/proxy?ip=${dev.ip}&url=${encodeURIComponent("/control?id="+r+"&action="+action)}`)
+    .then(r => { 
+      if (!r.ok) throw new Error(); 
+      setTimeout(update, 500); 
+    })
+    .catch(() => { 
+      alert(`Hata: ${dev.name} ile iletişim kurulamadı.`); 
+      btn.textContent = originalText; 
+      btn.disabled = false; 
+      setTimeout(update, 500); 
+    });
+}
+
+// saveProg
+function saveProg(i){
+  const dev=DEVICES[i], r=getRelay(i);
+  const start=document.getElementById("t1_"+i).value;
+  const end=document.getElementById("t2_"+i).value;
+  const [sh,sm]=start.split(":"); const [eh,em]=end.split(":");
+  const mask=getMask(i);
+  if(!mask) return alert("Gün seç!");
+
+  localStorage.setItem(`p_${dev.name}_r${r}_s`, start);
+  localStorage.setItem(`p_${dev.name}_r${r}_e`, end);
+  localStorage.setItem(`p_${dev.name}_r${r}_m`, mask);
+
+  const url = `/save?relay_id=${r}&start_h=${sh}&start_m=${sm}&end_h=${eh}&end_m=${em}&days=${mask}&active=1`;
+  fetch(`/proxy?ip=${dev.ip}&url=${encodeURIComponent(url)}`)
+    .then(r=>{ r.ok ? feedbackSuccess('saveProgBtn_'+i) : alert("Hata"); setTimeout(update,1000); });
+}
+
+// clearProg
+function clearProg(i){
+  const dev=DEVICES[i], r=getRelay(i);
+  localStorage.removeItem(`p_${dev.name}_r${r}_s`);
+  localStorage.removeItem(`p_${dev.name}_r${r}_e`);
+  localStorage.removeItem(`p_${dev.name}_r${r}_m`);
+  
+  fetch(`/proxy?ip=${dev.ip}&url=${encodeURIComponent(`/save?relay_id=${r}&days=0&active=0`)}`)
+    .then(()=>{ alert("Zamanlayıcı İptal"); setTimeout(update,800); });
+}
+
+// loadProgValues
+function loadProgValues(i) {
+    const dev = DEVICES[i], r = getRelay(i);
+    const s = localStorage.getItem(`p_${dev.name}_r${r}_s`);
+    const e = localStorage.getItem(`p_${dev.name}_r${r}_e`);
+    const m = localStorage.getItem(`p_${dev.name}_r${r}_m`);
+
+    document.getElementById(`t1_${i}`).value = s || "08:00";
+    document.getElementById(`t2_${i}`).value = e || "18:00";
+    const mask = m ? parseInt(m) : 127;
+    for(let j=0; j<7; j++) document.getElementById(`d${i}_${j}`).checked = (mask & (1<<j)) !== 0;
+}
+
+// renderSettings
+function renderSettings(){
+  let html = `<div class="settings-container"><h3>Cihaz Yönetimi</h3><table>`;
+  DEVICES.forEach((d,i)=>html+=`<tr><td><input id="n${i}" value="${d.name}"></td><td><input id="i${i}" value="${d.ip}"></td><td><button class="btn off" onclick="del(${i})">X</button></td></tr>`);
+  html+=`</table><br><button class="btn" style="background:#444;color:#fff" onclick="add()">+ Cihaz Ekle</button><br><br><button class="btn on" id="saveDevBtn" onclick="saveDevices()">KAYDET</button>`;
+  html+=`<hr style="border-top:1px solid #333;margin:15px 0"><button class="btn off" style="width:100%;margin-bottom:5px" onclick="restartHub()">HUB YENİDEN BAŞLAT</button><button class="btn off" style="width:100%" onclick="resetWifi()">WIFI SIFIRLA</button></div>`;
+  document.getElementById("content").innerHTML=html;
+}
+function add(){ DEVICES.push({name:"Yeni",ip:"192.168.1."}); renderSettings(); }
+function del(idx){ if(confirm("Sil?")){ DEVICES.splice(idx,1); renderSettings(); }}
+function saveDevices(){
+  const arr=[]; for(let j=0;j<DEVICES.length;j++){ arr.push({name:document.getElementById("n"+j).value,ip:document.getElementById("i"+j).value}); }
+  fetch("/save_devices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(arr)}).then(r=>feedbackSuccess('saveDevBtn'));
+}
+function restartHub() { if(confirm("Emin misin?")) fetch("/restart_hub"); }
+function resetWifi() { if(confirm("Emin misin?")) fetch("/reset_wifi"); }
+
+// renderWeather
+function renderWeather(){
+    fetchStatus().then(()=>{
+        const c=WEATHER_CONFIG, w=CURRENT_WEATHER;
+        const city = c.city || "";
+        const district = c.district || "";
+        const neighbourhood = c.neighbourhood || "";
+        
+        let statusMessage = "✅ Veriler güncel";
+        let statusColor = "#03dac6";
+        const hasCityInfo = w.city_name && w.city_name !== "Bilinmeyen" && w.city_name !== "Körfez, Kocaeli";
+        if (!hasCityInfo) { statusMessage = "📍 Şehir bilgisi bekleniyor..."; statusColor = "#ff9800"; }
+        if (w.description === "FETCH_ERROR") { statusMessage = "❌ Hava verisi alınamadı"; statusColor = "#cf6679"; }
+        if (!w.temp && !w.humidity) { statusMessage = "⏳ Hava durumu yükleniyor..."; statusColor = "#bb86fc"; }
+        
+        let windInfo = "-";
+        if (w.wind_speed) {
+            windInfo = `${w.wind_speed} m/s`;
+            if (w.wind_direction && w.wind_direction !== "-") windInfo += ` ${w.wind_direction}`;
+            else if (w.wind_dir) windInfo += ` (${w.wind_dir}°)`;
+        }
+        
+        let scoreInfo = "";
+        if (w.lightness_score && w.lightness_score > 0) {
+            const score = w.lightness_score;
+            let scoreText = "", scoreColor = "";
+            switch(score) {
+                case 1: scoreText = "AÇIK HAVA (Bulut ≤%25)"; scoreColor = "#4CAF50"; break;
+                case 2: scoreText = "PARÇALI BULUTLU (%25-95)"; scoreColor = "#FF9800"; break;
+                case 3: scoreText = "KAPALI/GECE (%95+)"; scoreColor = "#2196F3"; break;
+                default: scoreText = "SKOR: " + score; scoreColor = "#9C27B0";
+            }
+            scoreInfo = `<div style="background:#1a1a1a;padding:10px;border-radius:5px;margin-bottom:15px;text-align:center;border-left:4px solid ${scoreColor}">
+                <div style="font-size:1.1em;font-weight:bold;color:${scoreColor};margin-bottom:3px">🎯 BULUT SKORU: ${score}</div>
+                <div style="font-size:0.9em;color:#ccc;font-weight:500">${scoreText}</div>
+                <div style="font-size:0.8em;color:#888;margin-top:5px">${c.threshold ? `Eşik Değer: ${c.threshold}` : ''}</div>
+            </div>`;
+        }
+        
+        let html = `<div class="settings-container"><h3>Oto Meteoroloji Kontrol</h3>
+        <div style="background:#222;padding:12px;border-radius:5px;font-size:0.9em;margin-bottom:15px">
+           <b>${w.city_name||'-'}</b><br>
+           🌡️ ${w.temp||'-'}°C | 💧 %${w.humidity||'-'} | ☁️ %${w.clouds||'-'}<br>
+           🌬️ ${windInfo}<br>
+           🌅 ${w.sunrise_time||'-'} | 🌇 ${w.sunset_time||'-'}
+        </div>
+        ${scoreInfo}
+        <div style="background:#1a1a1a;padding:8px;border-radius:5px;margin-bottom:15px;text-align:center;border:1px solid ${statusColor}">
+            <span style="color:${statusColor};font-weight:bold">${statusMessage}</span>
+            ${!hasCityInfo ? '<br><small style="color:#888;font-size:0.8em">"HAVA DURUMUNU ŞİMDİ GÜNCELLE" butonuna tıklayın</small>' : ''}
+        </div>
+        <table>
+            <tr><td>Aktif:</td><td><input type="checkbox" id="w_active" ${c.active?'checked':''}></td></tr>
+            <tr><td>Cihaz:</td><td><select id="w_dev">${DEVICES.map(d=>`<option value="${d.name}" ${c.device_name===d.name?'selected':''}>${d.name}</option>`).join('')}</select></td></tr>
+            <tr><td>Röle:</td><td><select id="w_rel"><option value="1" ${c.relay_id==1?'selected':''}>Röle 1</option><option value="2" ${c.relay_id==2?'selected':''}>Röle 2</option></select></td></tr>
+            <tr><td>İşlem:</td><td><select id="w_act"><option value="ON" ${c.action=='ON'?'selected':''}>AÇ</option><option value="OFF" ${c.action=='OFF'?'selected':''}>KAPAT</option></select></td></tr>
+            <tr><td>Eşik:</td><td><select id="w_thr"><option value="1" ${c.threshold==1?'selected':''}>1-Az Bulutlu</option><option value="2" ${c.threshold==2?'selected':''}>2-Parçalı</option><option value="3" ${c.threshold==3?'selected':''}>3-Kapalı/Gece</option></select></td></tr>
+            <tr><td>Saat:</td><td><div style="display:flex;gap:5px"><input type="time" id="w_start" value="${c.start_time||'17:00'}">-<input type="time" id="w_end" value="${c.end_time||'23:00'}"></div></td></tr>
+            <tr><td>Rüzgar Eşiği (m/s):</td><td><input type="number" step="0.1" id="w_wind_threshold" placeholder="1.0" value="${c.wind_threshold||'15.0'}"></td></tr>
+            <tr><td>Şehir:</td><td><input type="text" id="w_city" placeholder="İzmit, Kocaeli..." value="${city}"></td></tr>
+            <tr><td>İlçe:</td><td><input type="text" id="w_district" placeholder="Körfez" value="${district}"></td></tr>
+            <tr><td>Mahalle:</td><td><input type="text" id="w_neigh" placeholder="Mahalle / Sokak (opsiyonel)" value="${neighbourhood}"></td></tr>
+        </table><br>
+        <button class="btn on" id="saveWeatherBtn" style="width:100%" onclick="saveWeather()">AYARLARI KAYDET</button>
+        <button class="btn off" id="refreshWeatherBtn" style="width:100%;margin-top:5px" onclick="refreshWeather()">HAVA DURUMUNU ŞİMDİ GÜNCELLE</button>
+        </div>`;
+        document.getElementById("content").innerHTML=html;
+    });
+}
+
+// saveWeather
+function saveWeather(){
+    const cfg={
+      active:document.getElementById('w_active').checked,
+      device_name:document.getElementById('w_dev').value,
+      relay_id:parseInt(document.getElementById('w_rel').value),
+      threshold:parseInt(document.getElementById('w_thr').value),
+      action:document.getElementById('w_act').value,
+      start_time:document.getElementById('w_start').value,
+      end_time:document.getElementById('w_end').value,
+      wind_threshold:parseFloat(document.getElementById('w_wind_threshold').value), 
+      city:document.getElementById('w_city').value.trim(),
+      district:document.getElementById('w_district').value.trim(),
+      neighbourhood:document.getElementById('w_neigh').value.trim(),
+      latitude:"",
+      longitude:""
+    };
+    
+    const saveBtn = document.getElementById('saveWeatherBtn');
+    const refreshBtn = document.getElementById('refreshWeatherBtn');
+    saveBtn.disabled = true; saveBtn.textContent = "KAYDEDİLİYOR...";
+    refreshBtn.disabled = true;
+
+    fetch("/save_weather_config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(cfg)})
+    .then(r=>{
+        saveBtn.disabled = false; refreshBtn.disabled = false;
+        if(r.ok) { saveBtn.textContent = "KAYDEDİLDİ"; setTimeout(() => location.reload(), 2000); }
+        else { saveBtn.textContent = "HATA"; setTimeout(() => saveBtn.textContent = "AYARLARI KAYDET", 3000); }
+    });
+}
+
+// refreshWeather
+function refreshWeather() {
+    const refreshBtn = document.getElementById('refreshWeatherBtn');
+    refreshBtn.disabled = true; refreshBtn.textContent = "GÜNCELLENİYOR...";
+    fetch("/save_weather_config", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({refresh: true})})
+    .then(r => { refreshBtn.disabled = false; refreshBtn.textContent = r.ok ? "GÜNCELLENDİ" : "HATA"; setTimeout(() => location.reload(), 2000); });
+}
+
+// navigate
+function navigate(){
+    const p = location.pathname;
+    document.querySelectorAll('.nav a').forEach(a=>a.className='');
+    if(p==="/") document.getElementById("nav1").className="active";
+    else if(p==="/settings") document.getElementById("nav2").className="active";
+    else if(p==="/weather") document.getElementById("nav3").className="active";
+
+    if(p==="/settings") fetchDevices().then(renderSettings);
+    else if(p==="/weather") fetchDevices().then(renderWeather);
+    else fetchDevices().then(()=>{ renderControl(); update(); });
+}
+
+window.onload = function() { window.onpopstate = navigate; navigate(); setInterval(update, 2000); };
 </script>
 </body>
 </html>
