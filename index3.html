@@ -9,12 +9,16 @@
 body { font-family: Arial; background:#0f0f0f; color:#eee; margin:0; }
 header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; }
 .container { padding:10px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; padding:10px; }
-.card { background:#1b1b1b; border-radius:14px; padding:12px; border:1px solid #333; box-shadow:0 0 8px #000; }
-.card h3 { margin:0 0 8px 0; font-size:17px; color:#00e5ff; }
-.btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; }
-.on { background:#00e676; color:#000; }
-.off { background:#333; color:#ccc; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; padding:10px; }
+.card { background:#1b1b1b; border-radius:14px; padding:16px; border:1px solid #333; box-shadow:0 0 8px #000; }
+.card h3 { margin:0 0 10px 0; font-size:18px; color:#00e5ff; }
+.card-info { font-size:13px; color:#aaa; margin:6px 0; display:flex; justify-content:space-between; }
+.card-buttons { display:flex; gap:10px; margin-top:12px; }
+.btn { flex:1; padding:12px; border:none; border-radius:10px; font-size:15px; cursor:pointer; font-weight:bold; text-align:center; }
+.toggle-btn { background:#333; color:#ccc; }
+.toggle-btn.on { background:#00e676; color:#000; }
+.toggle-btn.off { background:#333; color:#ccc; }
+.ip-btn { background:#2196f3; color:#fff; }
 .groupBox { margin:12px 0; padding:10px; background:#111; border-radius:10px; border:1px solid #333; }
 .groupBox h2 { margin:0 0 10px 0; font-size:18px; color:#ff9800; }
 .addBox { background:#111; padding:12px; border-radius:10px; margin:10px; border:1px solid #333; }
@@ -22,6 +26,7 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
 .addBox button { width:100%; padding:12px; margin-top:5px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:15px; }
 .all-buttons { display:flex; gap:12px; padding:12px; }
 .all-buttons button { flex:1; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; }
+.device-count { text-align:center; padding:10px; color:#888; font-size:14px; }
 </style>
 </head>
 <body>
@@ -35,8 +40,14 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
 </div>
 
+<!-- CİHAZ SAYISI -->
+<div class="device-count" id="deviceCount">Yükleniyor...</div>
+
 <!-- GRUPLAR -->
 <div id="groupArea"></div>
+
+<!-- ANA CİHAZ GRIDİ -->
+<div id="deviceGrid" class="grid"></div>
 
 <!-- CİHAZ EKLEME ALANI -->
 <div class="addBox">
@@ -48,9 +59,6 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   <input id="devIP" placeholder="IP Adresi (örn: 192.168.1.113)">
   <button onclick="addDevice()">CİHAZI EKLE</button>
 </div>
-
-<!-- ANA CİHAZ GRIDİ -->
-<div id="deviceGrid" class="grid"></div>
 
 </div>
 
@@ -69,25 +77,59 @@ let devices = JSON.parse(localStorage.getItem("devices") || "[]");
 // CİHAZ EKLE
 //--------------------------------------------------
 function addDevice(){
-    let name = devName.value.trim();
-    let topicSet = devSet.value.trim();
-    let topicState = devState.value.trim();
-    let group = devGroup.value.trim() || "Genel";
-    let ip = devIP.value.trim();
+    let name = document.getElementById('devName').value.trim();
+    let topicSet = document.getElementById('devSet').value.trim();
+    let topicState = document.getElementById('devState').value.trim();
+    let group = document.getElementById('devGroup').value.trim() || "Genel";
+    let ip = document.getElementById('devIP').value.trim();
 
-    if(!name || !topicSet || !topicState){ alert("Alanlar boş olamaz!"); return; }
+    if(!name || !topicSet || !topicState){ 
+        alert("Cihaz adı, Set Topic ve State Topic alanları boş olamaz!"); 
+        return; 
+    }
 
-    devices.push({ name, topicSet, topicState, group, ip }));
+    devices.push({ name, topicSet, topicState, group, ip, status: "unknown" });
     localStorage.setItem("devices", JSON.stringify(devices));
 
-    devName.value = "";
-    devSet.value = "";
-    devState.value = "";
-    devGroup.value = "";
-    devIP.value = "";
+    document.getElementById('devName').value = "";
+    document.getElementById('devSet').value = "";
+    document.getElementById('devState').value = "";
+    document.getElementById('devGroup').value = "";
+    document.getElementById('devIP').value = "";
 
     client.subscribe(topicState);
     buildUI();
+}
+
+//--------------------------------------------------
+// CİHAZA GİT (IP ile erişim)
+//--------------------------------------------------
+function goToDevice(index){
+    const device = devices[index];
+    if(!device.ip || device.ip.trim() === "") {
+        alert("Bu cihaz için IP adresi tanımlanmamış!");
+        return;
+    }
+    
+    // IP adresine yönlendir
+    const url = `http://${device.ip}`;
+    window.open(url, '_blank');
+}
+
+//--------------------------------------------------
+// CİHAZ SİL
+//--------------------------------------------------
+function deleteDevice(index){
+    if(confirm("Bu cihazı silmek istediğinizden emin misiniz?")){
+        // State topic'ine unsubscribe ol
+        const topic = devices[index].topicState;
+        client.unsubscribe(topic);
+        
+        // Cihazı listeden kaldır
+        devices.splice(index, 1);
+        localStorage.setItem("devices", JSON.stringify(devices));
+        buildUI();
+    }
 }
 
 //--------------------------------------------------
@@ -100,6 +142,10 @@ function buildUI(){
     grid.innerHTML = "";
     groupArea.innerHTML = "";
 
+    // Cihaz sayısını güncelle
+    document.getElementById("deviceCount").textContent = 
+        `Toplam ${devices.length} cihaz bulunuyor`;
+
     // GRUPLARI TOPLA
     const groups = {};
     devices.forEach(d => {
@@ -111,7 +157,21 @@ function buildUI(){
     for(const g in groups){
         const box = document.createElement("div");
         box.className = "groupBox";
-        box.innerHTML = `<h2>${g}</h2>`;
+        box.innerHTML = `<h2>${g} (${groups[g].length} cihaz)</h2>`;
+        
+        // Grup için aç/kapa butonları
+        const groupButtons = document.createElement("div");
+        groupButtons.className = "all-buttons";
+        groupButtons.style.padding = "5px 0";
+        groupButtons.innerHTML = `
+            <button onclick="turnGroup('${g}', 1)" style="background:#00e676;color:#000; padding:8px; font-size:14px">
+                ${g} Grubunu AÇ
+            </button>
+            <button onclick="turnGroup('${g}', 0)" style="background:#ff5252;color:#fff; padding:8px; font-size:14px">
+                ${g} Grubunu KAPAT
+            </button>
+        `;
+        box.appendChild(groupButtons);
         groupArea.appendChild(box);
     }
 
@@ -120,8 +180,29 @@ function buildUI(){
         const card = document.createElement("div");
         card.className = "card";
         card.innerHTML = `
-          <h3>${d.name}</h3>
-          <button id="btn${index}" class="btn off" onclick="toggle(${index})">...</button>
+            <h3>${d.name}</h3>
+            <div class="card-info">
+                <span>Grup: ${d.group}</span>
+                <span>IP: ${d.ip || "Tanımlanmamış"}</span>
+            </div>
+            <div class="card-info">
+                <span>Set: ${d.topicSet}</span>
+                <span>State: ${d.topicState}</span>
+            </div>
+            <div class="card-buttons">
+                <button id="btn${index}" class="btn toggle-btn ${d.status === "1" ? 'on' : 'off'}" 
+                        onclick="toggle(${index})">
+                    ${d.status === "1" ? "AÇIK" : d.status === "0" ? "KAPALI" : "..."}
+                </button>
+                <button class="btn ip-btn" onclick="goToDevice(${index})" ${!d.ip ? 'disabled style="opacity:0.5"' : ''}>
+                    CİHAZA GİT
+                </button>
+            </div>
+            <div style="text-align:center; margin-top:8px;">
+                <button onclick="deleteDevice(${index})" style="background:transparent; color:#ff5252; border:none; cursor:pointer; font-size:12px;">
+                    Cihazı Sil
+                </button>
+            </div>
         `;
         grid.appendChild(card);
     });
@@ -132,7 +213,11 @@ function buildUI(){
 //--------------------------------------------------
 client.on("connect", () => {
     console.log("MQTT Bağlandı");
-    devices.forEach(d => client.subscribe(d.topicState));
+    devices.forEach(d => {
+        client.subscribe(d.topicState);
+        // Bağlantı kurulduğunda state'leri sorgula
+        client.publish(d.topicSet + "/get", "");
+    });
 });
 
 //--------------------------------------------------
@@ -143,10 +228,17 @@ client.on("message", (topic, msg) => {
 
     devices.forEach((d, index) => {
         if(topic === d.topicState){
+            d.status = val;
             const btn = document.getElementById("btn" + index);
             if(btn){
-                if(val === "1"){ btn.textContent="AÇIK"; btn.className="btn on"; }
-                else { btn.textContent="KAPALI"; btn.className="btn off"; }
+                if(val === "1"){ 
+                    btn.textContent = "AÇIK"; 
+                    btn.className = "btn toggle-btn on"; 
+                }
+                else { 
+                    btn.textContent = "KAPALI"; 
+                    btn.className = "btn toggle-btn off"; 
+                }
             }
         }
     });
@@ -166,13 +258,45 @@ function toggle(index){
 // TÜM CİHAZLARI AÇ/KAPA
 //--------------------------------------------------
 function turnAll(state){
-    devices.forEach(d => client.publish(d.topicSet, String(state), { retain:true }));
+    devices.forEach(d => {
+        client.publish(d.topicSet, String(state), { retain:true });
+    });
+    setTimeout(() => {
+        devices.forEach(d => {
+            client.publish(d.topicSet + "/get", "");
+        });
+    }, 500);
+}
+
+//--------------------------------------------------
+// GRUBA GÖRE AÇ/KAPA
+//--------------------------------------------------
+function turnGroup(groupName, state){
+    devices.forEach(d => {
+        if(d.group === groupName){
+            client.publish(d.topicSet, String(state), { retain:true });
+        }
+    });
+    setTimeout(() => {
+        devices.forEach(d => {
+            if(d.group === groupName){
+                client.publish(d.topicSet + "/get", "");
+            }
+        });
+    }, 500);
 }
 
 //--------------------------------------------------
 // BAŞLAT
 //--------------------------------------------------
 buildUI();
+
+// Sayfa kapatılırken MQTT bağlantısını kes
+window.addEventListener('beforeunload', () => {
+    if(client && client.connected){
+        client.end();
+    }
+});
 </script>
 
 </body>
