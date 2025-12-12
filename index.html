@@ -295,6 +295,28 @@ td { padding: 10px; border-bottom: 1px solid #333; }
     to { transform: rotate(360deg); }
 }
 
+/* IP Kontrol Paneli */
+.ip-control {
+    background: #1a1a1a;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px auto;
+    border: 1px solid #333;
+    max-width: 800px;
+    text-align: center;
+}
+.ip-display {
+    background: #111;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+    margin: 5px 0;
+    display: inline-block;
+}
+.ip-display.connected { color: #4CAF50; border: 1px solid #4CAF50; }
+.ip-display.disconnected { color: #cf6679; border: 1px solid #cf6679; }
+
 </style>
 </head>
 <body>
@@ -318,10 +340,26 @@ td { padding: 10px; border-bottom: 1px solid #333; }
     </div>
 </div>
 
+<!-- ESP32 IP Kontrol Paneli -->
+<div class="ip-control">
+    <div style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
+        <button class="btn" onclick="setupESP32IP()" style="background:#bb86fc;font-size:0.9em">
+            🌐 ESP32 IP Ayarla
+        </button>
+        <button class="btn" onclick="showIPInfo()" style="background:#FF9800;font-size:0.9em">
+            ℹ️ IP Bilgisi
+        </button>
+        <div class="ip-display disconnected" id="ipDisplay">
+            ESP32 IP: Ayarlanmadı
+        </div>
+    </div>
+    <div id="ipStatus"></div>
+</div>
+
 <div id="githubStatus" class="github-info inactive">GitHub: Yükleniyor...</div>
 
 <script>
-// Global değişkenler
+// ===================== DEĞİŞKENLER =====================
 let DEVICES = [];
 let STATUS = {};
 let CURRENT_WEATHER = {};
@@ -331,6 +369,9 @@ let APP_STATUS = {
     error: null,
     lastUpdate: null
 };
+
+// ESP32 IP Adresi
+let ESP32_BASE_URL = '';
 
 const daysName = ["Pt","Sa","Ça","Pe","Cu","Ct","Pz"];
 
@@ -347,7 +388,81 @@ const MQTT_TOPICS = {
     HUB_IP: 'nejat/hub/ip'
 };
 
-// Saat güncelleme
+// ===================== ESP32 IP YÖNETİMİ =====================
+function initESP32Config() {
+    // 1. localStorage'da kayıtlı IP'yi kontrol et
+    const savedIP = localStorage.getItem('esp32_ip');
+    
+    // 2. URL parametresinden IP al (örnek: ?esp32_ip=192.168.1.100)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlIP = urlParams.get('esp32_ip');
+    
+    // Öncelik sırası: URL parametresi > localStorage
+    if (urlIP) {
+        ESP32_BASE_URL = `http://${urlIP}`;
+        localStorage.setItem('esp32_ip', urlIP);
+    } else if (savedIP) {
+        ESP32_BASE_URL = `http://${savedIP}`;
+    }
+    
+    // IP bilgisini göster
+    updateIPDisplay();
+}
+
+function setupESP32IP() {
+    const currentIP = ESP32_BASE_URL.replace('http://', '') || '192.168.1.100';
+    const newIP = prompt(`ESP32'nin IP adresini girin:\n(Örnek: 192.168.1.100)`, currentIP);
+    
+    if (newIP && newIP.trim()) {
+        // IP formatını kontrol et
+        const ipPattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+        if (!ipPattern.test(newIP)) {
+            alert('Geçersiz IP formatı! Örnek: 192.168.1.100');
+            return;
+        }
+        
+        ESP32_BASE_URL = `http://${newIP}`;
+        localStorage.setItem('esp32_ip', newIP);
+        
+        // Kullanıcıya bilgi ver
+        document.getElementById('ipStatus').innerHTML = `
+            <div style="background:#4CAF50;color:white;padding:8px;border-radius:5px;margin:8px 0;font-size:0.9em">
+                ✅ IP güncellendi: ${newIP}<br>
+                Sayfa yeniden yükleniyor...
+            </div>
+        `;
+        
+        // IP bilgisini güncelle
+        updateIPDisplay();
+        
+        // 2 saniye sonra sayfayı yenile
+        setTimeout(() => location.reload(), 2000);
+    }
+}
+
+function showIPInfo() {
+    const ip = ESP32_BASE_URL.replace('http://', '');
+    const message = ip 
+        ? `ESP32 IP Adresi: ${ip}\n\nDeğiştirmek için "IP Ayarla" butonunu kullanın.`
+        : 'ESP32 IP adresi henüz ayarlanmamış.\nLütfen "IP Ayarla" butonuna tıklayın.';
+    alert(message);
+}
+
+function updateIPDisplay() {
+    const ipDisplay = document.getElementById('ipDisplay');
+    if (ipDisplay) {
+        const displayIP = ESP32_BASE_URL.replace('http://', '');
+        if (displayIP) {
+            ipDisplay.textContent = `ESP32 IP: ${displayIP}`;
+            ipDisplay.className = 'ip-display connected';
+        } else {
+            ipDisplay.textContent = 'ESP32 IP: Ayarlanmadı';
+            ipDisplay.className = 'ip-display disconnected';
+        }
+    }
+}
+
+// ===================== TEMEL FONKSİYONLAR =====================
 function updateClock() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('tr-TR', { 
@@ -358,36 +473,55 @@ function updateClock() {
     document.getElementById('clock').textContent = timeStr;
 }
 
-// İlk saat güncellemesi ve interval
+// Saat güncelleme
 updateClock();
 setInterval(updateClock, 1000);
 
-// Hata yönetimi
 function handleError(error, context) {
     console.error(`Hata (${context}):`, error);
-    APP_STATUS.error = error.message;
+    
+    let userMessage = error.message;
+    
+    // Özel hata mesajları
+    if (error.message.includes('ESP32\'ye bağlanılamadı') || error.message.includes('Zaman aşımı')) {
+        userMessage = `🌐 Bağlantı Hatası\n\nESP32'ye bağlanılamıyor.\nIP: ${ESP32_BASE_URL || 'Ayarlanmamış'}\n\nLütfen IP adresini kontrol edin ve "IP Ayarla" butonuna tıklayın.`;
+    } else if (error.message.includes('Endpoint bulunamadı')) {
+        userMessage = `🔌 API Hatası\n\nESP32'de ${context} endpoint'i bulunamadı.\nESP32 kodunun çalıştığından emin olun.`;
+    }
+    
+    APP_STATUS.error = userMessage;
     
     const contentDiv = document.getElementById('content');
     if (contentDiv) {
         contentDiv.innerHTML = `
-            <div style="text-align:center;padding:40px;color:#cf6679">
-                <h3>❌ Hata Oluştu</h3>
-                <p>${context}: ${error.message}</p>
-                <button class="btn" onclick="location.reload()" style="margin-top:20px;background:#03dac6">
-                    Sayfayı Yenile
-                </button>
+            <div style="text-align:center;padding:30px;max-width:500px;margin:0 auto">
+                <div style="font-size:3em;color:#cf6679;margin-bottom:20px">⚠️</div>
+                <h3 style="color:#cf6679">Sistem Hatası</h3>
+                <div style="background:#1a1a1a;padding:15px;border-radius:8px;margin:20px 0;text-align:left">
+                    ${userMessage.replace(/\n/g, '<br>')}
+                </div>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px">
+                    <button class="btn" onclick="location.reload()" style="background:#03dac6">
+                        🔄 Yeniden Dene
+                    </button>
+                    <button class="btn" onclick="setupESP32IP()" style="background:#bb86fc">
+                        🌐 IP Ayarla
+                    </button>
+                </div>
             </div>
         `;
     }
 }
 
-// API Fonksiyonları (hata yönetimli)
-async function fetchWithTimeout(url, options = {}, timeout = 5000) {
+async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+    // ESP32 base URL'ini ekle
+    const fullUrl = ESP32_BASE_URL ? ESP32_BASE_URL + url : url;
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     
     try {
-        const response = await fetch(url, {
+        const response = await fetch(fullUrl, {
             ...options,
             signal: controller.signal
         });
@@ -400,6 +534,14 @@ async function fetchWithTimeout(url, options = {}, timeout = 5000) {
         return response;
     } catch (error) {
         clearTimeout(timeoutId);
+        
+        // Network hatası için özel mesaj
+        if (error.name === 'AbortError') {
+            throw new Error(`Zaman aşımı: ${url} yüklenemedi`);
+        } else if (error.message.includes('Failed to fetch')) {
+            throw new Error(`ESP32'ye bağlanılamadı. IP: ${ESP32_BASE_URL}`);
+        }
+        
         throw error;
     }
 }
@@ -433,11 +575,8 @@ async function fetchStatus() {
         const githubStatus = document.getElementById('githubStatus');
         if (githubStatus) {
             if (data.github_mode) {
-                githubStatus.textContent = `GitHub: ${data.github_mode.toUpperCase()} MOD | MQTT: ${data.mqtt_connected ? 'Bağlı' : 'Bağlı Değil'}`;
+                githubStatus.textContent = `GitHub: ${data.github_mode.toUpperCase()} MOD`;
                 githubStatus.className = data.github_mode === 'github' ? 'github-info active' : 'github-info inactive';
-                if (data.github_size) {
-                    githubStatus.textContent += ` (${Math.round(data.github_size/1024)}KB)`;
-                }
             }
         }
         
@@ -451,17 +590,18 @@ async function fetchStatus() {
     }
 }
 
-// Navigasyon
+// ===================== NAVİGASYON =====================
 function route(path) {
     history.pushState(null, '', path);
     navigate();
     return false;
 }
 
+window.onpopstate = navigate;
+
 // GitHub Kontrolü
 function githubControl(action) {
-    showLoading();
-    fetch(`/github_control?action=${action}&t=${Date.now()}`)
+    fetchWithTimeout(`/github_control?action=${action}`)
         .then(r => r.text())
         .then(response => {
             alert(response);
@@ -471,8 +611,7 @@ function githubControl(action) {
         })
         .catch(err => {
             alert('GitHub kontrolü başarısız: ' + err.message);
-        })
-        .finally(() => hideLoading());
+        });
 }
 
 // Yükleme göster/gizle
@@ -486,10 +625,6 @@ function showLoading() {
             </div>
         `;
     }
-}
-
-function hideLoading() {
-    // navigate() fonksiyonu içeriği zaten güncelleyecek
 }
 
 // Geri bildirim
@@ -511,7 +646,7 @@ function feedbackSuccess(btnId) {
     }, 2000);
 }
 
-// --- ANA PANEL RENDER ---
+// ===================== ANA PANEL =====================
 function renderControl() {
     let html = `<div class="grid">`;
     
@@ -601,7 +736,6 @@ function renderControl() {
             <button class="btn" onclick="githubControl('update')" style="background:#333;margin:5px;min-width:140px">🔄 GitHub Güncelle</button>
             <button class="btn" onclick="githubControl('enable')" style="background:#4CAF50;margin:5px;min-width:140px">✅ GitHub Aktif</button>
             <button class="btn" onclick="githubControl('disable')" style="background:#cf6679;margin:5px;min-width:140px">❌ GitHub Pasif</button>
-            <button class="btn" onclick="githubControl('status')" style="background:#2196F3;margin:5px;min-width:140px">ℹ️ GitHub Durumu</button>
         </div>
     </div>`;
     
@@ -706,21 +840,16 @@ function toggle(i, r) {
     btn.textContent = "⏳";
     btn.disabled = true;
     
-    // Manuel kontrol sinyali
-    fetch("/manual_control").catch(() => {});
-    
     // Röle durumunu belirle
     const action = originalText.includes("AÇIK") ? "off" : "on";
     
-    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent("/control?id=" + r + "&action=" + action)}`)
+    fetchWithTimeout(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent("/control?id=" + r + "&action=" + action)}`)
         .then(response => {
             if (response.ok) {
-                return response.text().then(() => {
-                    btn.textContent = action === "on" ? "✅ AÇIK" : "⭕ KAPALI";
-                    btn.className = action === "on" ? "btn on" : "btn off";
-                    // 500ms sonra durumu güncelle
-                    setTimeout(updateDeviceStatus, 500);
-                });
+                btn.textContent = action === "on" ? "✅ AÇIK" : "⭕ KAPALI";
+                btn.className = action === "on" ? "btn on" : "btn off";
+                // 500ms sonra durumu güncelle
+                setTimeout(updateDeviceStatus, 500);
             } else {
                 throw new Error("HTTP hatası");
             }
@@ -735,6 +864,11 @@ function toggle(i, r) {
 }
 
 // MQTT Kontrol
+function mqttPublish(topic, message) {
+    console.log(`MQTT Publish: ${topic} -> ${message}`);
+    alert(`MQTT komutu gönderildi:\n${topic} = ${message}\n\nNot: ESP32'nizde MQTT istemcisi çalışıyor olmalı.`);
+}
+
 function mqttControl(deviceName, relay, action) {
     const topic = relay === 1 ? MQTT_TOPICS.RELAY1_SET : MQTT_TOPICS.RELAY2_SET;
     let message = action.toUpperCase();
@@ -750,17 +884,6 @@ function mqttControl(deviceName, relay, action) {
     }
     
     mqttPublish(topic, message);
-    alert(`MQTT komutu gönderildi:\n${topic} = ${message}`);
-}
-
-function mqttPublish(topic, message) {
-    // Basit bir MQTT publish simülasyonu
-    console.log(`MQTT Publish: ${topic} -> ${message}`);
-    
-    // Gerçek implementasyon için API endpoint'i kullanılabilir
-    fetch(`/proxy?ip=localhost&url=/mqtt_publish?topic=${encodeURIComponent(topic)}&message=${encodeURIComponent(message)}`, {
-        method: 'POST'
-    }).catch(err => console.error('MQTT publish error:', err));
 }
 
 // Zamanlayıcı Kaydet
@@ -787,7 +910,7 @@ function saveProg(i) {
     localStorage.setItem(`p_${dev.name}_r${r}_m`, mask);
     
     const url = `/save?relay_id=${r}&start_h=${sh}&start_m=${sm}&end_h=${eh}&end_m=${em}&days=${mask}&active=1`;
-    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(url)}`)
+    fetchWithTimeout(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(url)}`)
         .then(response => {
             if (response.ok) {
                 feedbackSuccess('saveProgBtn_' + i);
@@ -815,7 +938,7 @@ function clearProg(i) {
     localStorage.removeItem(`p_${dev.name}_r${r}_e`);
     localStorage.removeItem(`p_${dev.name}_r${r}_m`);
     
-    fetch(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(`/save?relay_id=${r}&days=0&active=0`)}`)
+    fetchWithTimeout(`/proxy?ip=${encodeURIComponent(dev.ip)}&url=${encodeURIComponent(`/save?relay_id=${r}&days=0&active=0`)}`)
         .then(() => {
             alert("Zamanlayıcı iptal edildi!");
             setTimeout(updateDeviceStatus, 800);
@@ -848,14 +971,14 @@ function loadProgValues(i) {
     }
 }
 
-// --- MQTT KONTROL SAYFASI ---
+// ===================== MQTT KONTROL SAYFASI =====================
 function renderMqttControl() {
     let html = `
     <div class="mqtt-panel">
         <h3>📡 MQTT Uzaktan Kontrol Paneli</h3>
         
-        <div class="mqtt-status ${APP_STATUS.mqttConnected ? 'mqtt-connected' : 'mqtt-disconnected'}">
-            ${APP_STATUS.mqttConnected ? '✅ MQTT Bağlantısı: AKTİF' : '❌ MQTT Bağlantısı: KAPALI'}
+        <div class="mqtt-status mqtt-disconnected">
+            ❌ MQTT: ESP32'ye bağlı değil
         </div>
         
         <div style="margin:15px 0">
@@ -883,7 +1006,7 @@ function renderMqttControl() {
                     <h4>${MQTT_TOPICS.HUB_STATUS}</h4>
                     <p>Hub Durum Mesajı</p>
                     <div class="action-btns">
-                        <button class="btn" onclick="sendHubStatus()" style="background:#2196F3">Mesaj Gönder</button>
+                        <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.HUB_STATUS}', 'Test_' + Date.now())" style="background:#2196F3">Test Mesajı</button>
                     </div>
                 </div>
             </div>
@@ -895,14 +1018,6 @@ function renderMqttControl() {
                 <input type="text" id="customTopic" placeholder="nejat/relay/1/set" style="flex:1;min-width:200px" value="${MQTT_TOPICS.RELAY1_SET}">
                 <input type="text" id="customMessage" placeholder="ON veya OFF" style="flex:1;min-width:150px">
                 <button class="btn on" onclick="sendCustomMqtt()" style="min-width:100px">Gönder</button>
-            </div>
-        </div>
-        
-        <div style="margin-top:20px;background:#111;padding:10px;border-radius:5px;">
-            <h4>MQTT Test Komutları:</h4>
-            <div style="display:flex;gap:5px;flex-wrap:wrap">
-                <button class="btn" onclick="testMqttSequence()" style="background:#FF9800">Test Dizisi Çalıştır</button>
-                <button class="btn" onclick="mqttPublish('${MQTT_TOPICS.HUB_STATUS}', 'Test_' + Date.now())" style="background:#9C27B0">Test Mesajı</button>
             </div>
         </div>
     </div>`;
@@ -921,37 +1036,9 @@ function sendCustomMqtt() {
     
     mqttPublish(topic, message);
     document.getElementById('customMessage').value = '';
-    
-    alert(`Komut gönderildi:\n${topic} = ${message}`);
 }
 
-function sendHubStatus() {
-    const message = `Hub_Status_${new Date().toLocaleTimeString('tr-TR')}`;
-    mqttPublish(MQTT_TOPICS.HUB_STATUS, message);
-    alert(`Durum mesajı gönderildi: ${message}`);
-}
-
-function testMqttSequence() {
-    alert('MQTT Test Dizisi başlatılıyor...');
-    
-    // Test dizisi
-    setTimeout(() => {
-        mqttPublish(MQTT_TOPICS.RELAY1_SET, 'ON');
-        alert('Röle 1 AÇIK komutu gönderildi');
-    }, 500);
-    
-    setTimeout(() => {
-        mqttPublish(MQTT_TOPICS.RELAY2_SET, 'ON');
-        alert('Röle 2 AÇIK komutu gönderildi');
-    }, 1500);
-    
-    setTimeout(() => {
-        mqttPublish(MQTT_TOPICS.HUB_STATUS, 'Test_Sequence_Complete');
-        alert('Test dizisi tamamlandı');
-    }, 2500);
-}
-
-// --- AYARLAR SAYFASI ---
+// ===================== AYARLAR SAYFASI =====================
 function renderSettings() {
     let html = `
     <div class="settings-container">
@@ -994,7 +1081,6 @@ function renderSettings() {
         <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn warning" onclick="restartHub()">🔄 Hub'ı Yeniden Başlat</button>
             <button class="btn error" onclick="resetWifi()">📡 WiFi Ayarlarını Sıfırla</button>
-            <button class="btn" onclick="handleTestTelegram()" style="background:#0088cc">✉️ Telegram Test</button>
             <button class="btn" onclick="route('/mqtt')" style="background:#9C27B0">📡 MQTT Kontrol Paneli</button>
         </div>
     </div>`;
@@ -1038,7 +1124,7 @@ function saveDevices() {
         return;
     }
     
-    fetch("/save_devices", {
+    fetchWithTimeout("/save_devices", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -1048,21 +1134,19 @@ function saveDevices() {
     .then(response => {
         if (response.ok) {
             feedbackSuccess('saveDevBtn');
-            // Cihaz listesini güncelle
             DEVICES = devicesToSave;
         } else {
             alert('Cihazlar kaydedilemedi!');
         }
     })
     .catch(error => {
-        console.error('Cihaz kaydetme hatası:', error);
         alert('Cihazlar kaydedilemedi: ' + error.message);
     });
 }
 
 function restartHub() {
     if (confirm("Hub'ı yeniden başlatmak istiyor musunuz?")) {
-        fetch("/restart_hub")
+        fetchWithTimeout("/restart_hub")
             .then(() => {
                 alert("Hub yeniden başlatılıyor...");
             })
@@ -1074,7 +1158,7 @@ function restartHub() {
 
 function resetWifi() {
     if (confirm("WiFi ayarlarını sıfırlamak istiyor musunuz?\n\nCihaz yeniden başlayacak ve WiFi ayarlama moduna geçecek.")) {
-        fetch("/reset_wifi")
+        fetchWithTimeout("/reset_wifi")
             .then(() => {
                 alert("WiFi ayarları sıfırlanıyor...");
             })
@@ -1084,22 +1168,7 @@ function resetWifi() {
     }
 }
 
-function handleTestTelegram() {
-    fetch("/test_telegram")
-        .then(response => {
-            if (response.ok) {
-                alert("Telegram test mesajı gönderildi!\nTelegram'ı kontrol edin.");
-            } else {
-                alert("Telegram test mesajı gönderilemedi!");
-            }
-        })
-        .catch(error => {
-            console.error('Telegram test hatası:', error);
-            alert("Telegram test mesajı gönderilemedi: " + error.message);
-        });
-}
-
-// --- HAVA DURUMU SAYFASI ---
+// ===================== HAVA DURUMU SAYFASI =====================
 function renderWeather() {
     fetchStatus().then(() => {
         const c = WEATHER_CONFIG;
@@ -1253,7 +1322,7 @@ function saveWeather() {
     saveBtn.disabled = true;
     saveBtn.textContent = "⏳ Kaydediliyor...";
     
-    fetch("/save_weather_config", {
+    fetchWithTimeout("/save_weather_config", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(cfg)
@@ -1304,7 +1373,7 @@ function refreshWeather() {
     refreshBtn.disabled = true;
     refreshBtn.textContent = "⏳ Güncelleniyor...";
     
-    fetch("/save_weather_config", {
+    fetchWithTimeout("/save_weather_config", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({refresh: true})
@@ -1346,11 +1415,10 @@ function refreshWeather() {
     });
 }
 
-// --- NAVİGASYON ---
+// ===================== NAVİGASYON =====================
 async function navigate() {
     const path = window.location.pathname;
     
-    // Yükleme durumunu göster
     showLoading();
     
     // Aktif menüyü güncelle
@@ -1399,32 +1467,22 @@ async function navigate() {
     }
 }
 
-// Popstate event listener
-window.onpopstate = navigate;
-
-// Sayfa yüklendiğinde
+// ===================== SAYFA BAŞLANGICI =====================
 document.addEventListener('DOMContentLoaded', function() {
+    // ESP32 konfigürasyonunu başlat
+    initESP32Config();
+    
     // İlk navigasyon
     navigate();
     
-    // GitHub durumunu kontrol et
-    fetchStatus().catch(() => {
-        // Hata durumunda GitHub durumunu güncelle
-        const githubStatus = document.getElementById('githubStatus');
-        if (githubStatus) {
-            githubStatus.textContent = "GitHub: Bağlantı Hatası";
-            githubStatus.className = "github-info error";
-        }
+    // Global hata yakalama
+    window.addEventListener('error', function(event) {
+        console.error('Global hata:', event.error);
     });
-});
-
-// Global hata yakalama
-window.addEventListener('error', function(event) {
-    console.error('Global hata:', event.error);
-});
-
-window.addEventListener('unhandledrejection', function(event) {
-    console.error('Promise hatası:', event.reason);
+    
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('Promise hatası:', event.reason);
+    });
 });
 </script>
 </body>
