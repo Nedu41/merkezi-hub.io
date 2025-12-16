@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>Merkezi Hub v6.2 - MQTT Kontrol Paneli</title>
+<title>Merkezi Hub v6.3-B</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -13,13 +13,22 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
 
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
 
-.card { background:#1b1b1b; border-radius:14px; padding:12px; border:1px solid #333; box-shadow:0 0 8px #000; }
+.card { background:#1b1b1b; border-radius:14px; padding:12px; border:1px solid #333; }
 .card h3 { margin:0 0 6px 0; font-size:16px; color:#00e5ff; }
 
-.btn { width:100%; padding:10px; border:none; border-radius:10px; font-size:14px; cursor:pointer; font-weight:bold; }
+.btn {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  font-size:15px;
+  font-weight:bold;
+  cursor:pointer;
+}
+
 .on { background:#00e676; color:#000; }
-.off { background:#333; color:#ccc; }
-.unknown { background:#555; color:#aaa; }
+.off { background:#444; color:#ccc; }
+.unknown { background:#fbc02d; color:#000; }
 
 .editBtn {
   margin-top:6px;
@@ -32,7 +41,13 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   cursor:pointer;
 }
 
-.groupBox { margin:14px 0; padding:10px; background:#111; border-radius:12px; border:1px solid #333; }
+.groupBox {
+  margin:14px 0;
+  padding:10px;
+  background:#111;
+  border-radius:12px;
+  border:1px solid #333;
+}
 
 .groupHeader {
   display:flex;
@@ -40,42 +55,14 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   align-items:center;
   margin-bottom:8px;
 }
+
 .groupHeader h2 { margin:0; font-size:18px; color:#ff9800; }
 
 .groupHeader button {
   padding:6px 10px;
   border:none;
   border-radius:8px;
-  cursor:pointer;
   font-weight:bold;
-}
-
-.addBox {
-  background:#111;
-  padding:12px;
-  border-radius:12px;
-  margin:10px 0;
-  border:1px solid #333;
-}
-
-.addBox input {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  border-radius:8px;
-  border:1px solid #555;
-  background:#222;
-  color:#fff;
-}
-
-.addBox button {
-  width:100%;
-  padding:12px;
-  margin-top:6px;
-  background:#2196f3;
-  color:#fff;
-  border:none;
-  border-radius:8px;
   cursor:pointer;
 }
 </style>
@@ -83,22 +70,21 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
 
 <body>
 
-<header>MERKEZİ HUB v6.2</header>
+<header>MERKEZİ HUB v6.3-B</header>
 
 <div class="container">
+  <div id="groupArea"></div>
 
-<div id="groupArea"></div>
-
-<div class="addBox">
-  <h3 id="formTitle">Yeni Cihaz Ekle</h3>
-  <input id="devName" placeholder="Cihaz Adı">
-  <input id="devSet" placeholder="Set Topic">
-  <input id="devState" placeholder="State Topic">
-  <input id="devGroup" placeholder="Grup">
-  <input id="devIP" placeholder="IP Adresi">
-  <button onclick="saveDevice()">KAYDET</button>
-</div>
-
+  <div class="addBox">
+    <h3 id="formTitle">Yeni Cihaz Ekle / Düzenle</h3>
+    <input id="devName" placeholder="Cihaz Adı">
+    <input id="devOn" placeholder="ON Topic">
+    <input id="devOff" placeholder="OFF Topic">
+    <input id="devState" placeholder="Feedback Topic">
+    <input id="devGroup" placeholder="Grup">
+    <input id="devIP" placeholder="IP">
+    <button onclick="saveDevice()">KAYDET</button>
+  </div>
 </div>
 
 <script>
@@ -108,24 +94,17 @@ let devices = JSON.parse(localStorage.getItem("devices") || "[]");
 let editIndex = null;
 
 //--------------------------------------------------
-// DEFAULT CİHAZLAR (ilk açılış)
+// DEFAULT CİHAZ
 if(devices.length === 0){
-  devices = [
-    {
-      name:"Bahçe Lamba",
-      topicSet:"nejat/relay/bahce/set",
-      topicState:"nejat/relay/bahce/state",
-      group:"Bahçe",
-      ip:"192.168.1.113"
-    },
-    {
-      name:"Garaj Priz",
-      topicSet:"nejat/relay/garaj/set",
-      topicState:"nejat/relay/garaj/state",
-      group:"Garaj",
-      ip:"192.168.1.114"
-    }
-  ];
+  devices = [{
+    name:"Bahçe Lamba",
+    onTopic:"nejat/relay/bahce/on",
+    offTopic:"nejat/relay/bahce/off",
+    stateTopic:"nejat/relay/bahce/state",
+    group:"Bahçe",
+    ip:"192.168.1.113",
+    state:"?"
+  }];
   localStorage.setItem("devices", JSON.stringify(devices));
 }
 
@@ -133,24 +112,26 @@ if(devices.length === 0){
 function saveDevice(){
   const d = {
     name:devName.value.trim(),
-    topicSet:devSet.value.trim(),
-    topicState:devState.value.trim(),
-    group:devGroup.value.trim()||"Genel",
-    ip:devIP.value.trim()
+    onTopic:devOn.value.trim(),
+    offTopic:devOff.value.trim(),
+    stateTopic:devState.value.trim(),
+    group:devGroup.value.trim() || "Genel",
+    ip:devIP.value.trim(),
+    state:"?"
   };
 
-  if(!d.name || !d.topicSet || !d.topicState || !d.ip){
-    alert("Tüm alanlar dolu olmalı");
+  if(!d.name || !d.onTopic || !d.offTopic || !d.stateTopic){
+    alert("Alanlar boş olamaz");
     return;
   }
 
   if(editIndex === null){
     devices.push(d);
-    client.subscribe(d.topicState);
-  }else{
+    client.subscribe(d.stateTopic);
+  } else {
     devices[editIndex] = d;
     editIndex = null;
-    document.getElementById("formTitle").textContent="Yeni Cihaz Ekle";
+    formTitle.textContent="Yeni Cihaz Ekle / Düzenle";
   }
 
   localStorage.setItem("devices", JSON.stringify(devices));
@@ -165,15 +146,16 @@ function editDevice(i){
   formTitle.textContent="Cihaz Düzenle";
 
   devName.value=d.name;
-  devSet.value=d.topicSet;
-  devState.value=d.topicState;
+  devOn.value=d.onTopic;
+  devOff.value=d.offTopic;
+  devState.value=d.stateTopic;
   devGroup.value=d.group;
   devIP.value=d.ip;
 }
 
 //--------------------------------------------------
 function clearForm(){
-  devName.value=devSet.value=devState.value=devGroup.value=devIP.value="";
+  devName.value=devOn.value=devOff.value=devState.value=devGroup.value=devIP.value="";
 }
 
 //--------------------------------------------------
@@ -190,7 +172,16 @@ function buildUI(){
   for(const g in groups){
     const box=document.createElement("div");
     box.className="groupBox";
-    box.innerHTML=`<div class="groupHeader"><h2>${g}</h2></div><div class="grid"></div>`;
+    box.innerHTML=`
+      <div class="groupHeader">
+        <h2>${g}</h2>
+        <div>
+          <button style="background:#00e676" onclick="groupToggle('${g}',1)">AÇ</button>
+          <button style="background:#ff5252" onclick="groupToggle('${g}',0)">KAPAT</button>
+        </div>
+      </div>
+      <div class="grid"></div>
+    `;
     area.appendChild(box);
 
     const grid=box.querySelector(".grid");
@@ -200,7 +191,8 @@ function buildUI(){
       c.innerHTML=`
         <h3>${x.d.name}</h3>
         <small>${x.d.ip}</small><br><br>
-        <button class="btn unknown" id="btn${x.i}" onclick="toggle(${x.i})">BİLİNMİYOR</button>
+        <button id="btn${x.i}" class="btn unknown"
+          onclick="toggle(${x.i})">BİLİNMİYOR</button>
         <button class="editBtn" onclick="editDevice(${x.i})">✏️ DÜZENLE</button>
       `;
       grid.appendChild(c);
@@ -209,27 +201,51 @@ function buildUI(){
 }
 
 //--------------------------------------------------
-client.on("connect",()=>devices.forEach(d=>client.subscribe(d.topicState)));
+client.on("connect",()=>{
+  devices.forEach(d=>client.subscribe(d.stateTopic));
+});
 
-client.on("message",(t,m)=>{
-  const v=m.toString();
+// FEEDBACK → BUTON RENGİ
+client.on("message",(topic,msg)=>{
+  const val=msg.toString().toUpperCase();
   devices.forEach((d,i)=>{
-    if(t===d.topicState){
+    if(topic===d.stateTopic){
       const b=document.getElementById("btn"+i);
       if(!b) return;
-      if(v==="1"){ b.textContent="AÇIK"; b.className="btn on"; }
-      else { b.textContent="KAPALI"; b.className="btn off"; }
+
+      if(val==="1" || val==="ON"){
+        b.textContent="AÇIK";
+        b.className="btn on";
+        d.state="ON";
+      } else if(val==="0" || val==="OFF"){
+        b.textContent="KAPALI";
+        b.className="btn off";
+        d.state="OFF";
+      }
     }
   });
 });
 
 //--------------------------------------------------
+// TEK BUTON MANTIĞI
 function toggle(i){
-  const b=document.getElementById("btn"+i);
-  const s=b.textContent==="AÇIK"?"0":"1";
-  client.publish(devices[i].topicSet,s,{retain:true});
+  const d=devices[i];
+  if(d.state==="ON"){
+    client.publish(d.offTopic,"OFF",{retain:true});
+  } else {
+    client.publish(d.onTopic,"ON",{retain:true});
+  }
 }
 
+// GRUP AÇ / KAPA
+function groupToggle(group,state){
+  devices.filter(d=>d.group===group).forEach(d=>{
+    if(state===1) client.publish(d.onTopic,"ON",{retain:true});
+    else client.publish(d.offTopic,"OFF",{retain:true});
+  });
+}
+
+//--------------------------------------------------
 buildUI();
 </script>
 
