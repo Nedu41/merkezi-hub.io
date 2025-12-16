@@ -2,355 +2,271 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP01 Röle Kontrol</title>
+<title>Merkezi Hub v6.1 - MQTT Kontrol Paneli</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+body { font-family: Arial; background:#0f0f0f; color:#eee; margin:0; }
+header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; }
+.container { padding:10px; }
+
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:14px;
+  padding:10px;
 }
 
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    color: #fff;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
+.card {
+  background:#1b1b1b;
+  border-radius:14px;
+  padding:12px;
+  border:1px solid #333;
+  box-shadow:0 0 8px #000;
 }
 
-.container {
-    background: rgba(30, 30, 30, 0.95);
-    padding: 30px;
-    border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    max-width: 450px;
-    width: 100%;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.1);
+.card h3 { margin:0 0 8px 0; font-size:16px; color:#00e5ff; }
+
+.btn {
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  font-size:15px;
+  cursor:pointer;
+  font-weight:bold;
 }
 
-h2 {
-    text-align: center;
-    color: #03dac6;
-    margin-bottom: 25px;
-    font-size: 1.8em;
+.on { background:#00e676; color:#000; }
+.off { background:#333; color:#ccc; }
+.unknown { background:#555; color:#aaa; }
+
+.groupBox {
+  margin:14px 0;
+  padding:10px;
+  background:#111;
+  border-radius:12px;
+  border:1px solid #333;
 }
 
-.input-group {
-    margin-bottom: 20px;
+.groupHeader {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:8px;
 }
 
-.input-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: #aaa;
-    font-size: 0.9em;
-    font-weight: 500;
+.groupHeader h2 {
+  margin:0;
+  font-size:18px;
+  color:#ff9800;
 }
 
-.input-group input {
-    width: 100%;
-    padding: 12px;
-    background: #252525;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 8px;
-    font-size: 1em;
-    transition: border 0.3s;
+.groupHeader button {
+  padding:6px 10px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:bold;
 }
 
-.input-group input:focus {
-    outline: none;
-    border-color: #03dac6;
+.addBox {
+  background:#111;
+  padding:12px;
+  border-radius:12px;
+  margin:10px;
+  border:1px solid #333;
 }
 
-.relay-section {
-    background: #1a1a1a;
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-    border: 1px solid #333;
+.addBox input {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+  border-radius:8px;
+  border:1px solid #555;
+  background:#222;
+  color:#fff;
 }
 
-.relay-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
+.addBox button {
+  width:100%;
+  padding:12px;
+  margin-top:6px;
+  background:#2196f3;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
 }
 
-.relay-label {
-    font-size: 1.1em;
-    font-weight: bold;
-    color: #03dac6;
+.all-buttons {
+  display:flex;
+  gap:12px;
+  padding:12px;
 }
-
-.relay-status {
-    font-size: 0.9em;
-    padding: 5px 12px;
-    border-radius: 15px;
-    background: #333;
-    color: #aaa;
-}
-
-.relay-status.on {
-    background: #4CAF50;
-    color: white;
-}
-
-.relay-status.off {
-    background: #cf6679;
-    color: white;
-}
-
-.button-group {
-    display: flex;
-    gap: 10px;
-}
-
-button {
-    flex: 1;
-    padding: 15px;
-    border: none;
-    border-radius: 10px;
-    font-size: 1em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.btn-on {
-    background: linear-gradient(135deg, #03dac6 0%, #00b8a9 100%);
-    color: #000;
-    box-shadow: 0 4px 15px rgba(3, 218, 198, 0.3);
-}
-
-.btn-on:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(3, 218, 198, 0.4);
-}
-
-.btn-on:active {
-    transform: translateY(0);
-}
-
-.btn-off {
-    background: #333;
-    color: #ccc;
-    border: 2px solid #555;
-}
-
-.btn-off:hover {
-    background: #444;
-    border-color: #666;
-}
-
-.info {
-    text-align: center;
-    font-size: 0.85em;
-    color: #666;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid #333;
-}
-
-.loading {
-    text-align: center;
-    color: #03dac6;
-    margin: 20px 0;
-    font-size: 0.9em;
-}
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.error-message {
-    background: #cf6679;
-    color: white;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    text-align: center;
-    font-size: 0.9em;
+.all-buttons button {
+  flex:1;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  font-size:16px;
+  font-weight:bold;
+  cursor:pointer;
 }
 </style>
 </head>
+
 <body>
 
+<header>MERKEZİ HUB v6.1 (MQTT Gelişmiş Panel)</header>
+
 <div class="container">
-    <h2>🎛️ ESP01 Röle Kontrol</h2>
-    
-    <div class="input-group">
-        <label>📝 Cihaz Adı:</label>
-        <input type="text" id="deviceName" placeholder="Örn: Salon, Mutfak" value="Salon">
-    </div>
 
-    <div class="input-group">
-        <label>🌐 IP Adresi:</label>
-        <input type="text" id="deviceIP" placeholder="192.168.1.100" value="192.168.1.100">
-    </div>
+<div class="all-buttons">
+  <button onclick="turnAll(1)" style="background:#00e676;color:#000">TÜMÜNÜ AÇ</button>
+  <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
+</div>
 
-    <div id="errorMessage" style="display:none" class="error-message"></div>
+<div id="groupArea"></div>
 
-    <div class="relay-section">
-        <div class="relay-header">
-            <div class="relay-label">Röle 1</div>
-            <div id="status1" class="relay-status">-</div>
-        </div>
-        <div class="button-group">
-            <button class="btn-on" onclick="control(1, 'on')">✅ AÇ</button>
-            <button class="btn-off" onclick="control(1, 'off')">⭕ KAPAT</button>
-        </div>
-    </div>
+<div class="addBox">
+  <h3>Yeni Cihaz Ekle</h3>
+  <input id="devName" placeholder="Cihaz Adı">
+  <input id="devSet" placeholder="Set Topic">
+  <input id="devState" placeholder="State Topic">
+  <input id="devGroup" placeholder="Grup (örn: Bahçe)">
+  <input id="devIP" placeholder="IP Adresi (örn: 192.168.1.113)">
+  <button onclick="addDevice()">CİHAZI EKLE</button>
+</div>
 
-    <div class="relay-section">
-        <div class="relay-header">
-            <div class="relay-label">Röle 2</div>
-            <div id="status2" class="relay-status">-</div>
-        </div>
-        <div class="button-group">
-            <button class="btn-on" onclick="control(2, 'on')">✅ AÇ</button>
-            <button class="btn-off" onclick="control(2, 'off')">⭕ KAPAT</button>
-        </div>
-    </div>
-
-    <div class="info">
-        💡 IP adresini kontrol edin<br>
-        Cihaz aynı ağda olmalı
-    </div>
 </div>
 
 <script>
-// Durum güncelleme
-async function updateStatus() {
-    const ip = document.getElementById('deviceIP').value.trim();
-    if (!ip) return;
+//--------------------------------------------------
+// MQTT BAĞLANTI
+//--------------------------------------------------
+const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-    try {
-        const response = await fetch(`http://${ip}/status`);
-        if (response.ok) {
-            const data = await response.json();
-            
-            // Röle 1
-            const status1 = document.getElementById('status1');
-            if (data.r1_state === 'ON') {
-                status1.textContent = '🟢 AÇIK';
-                status1.className = 'relay-status on';
-            } else {
-                status1.textContent = '🔴 KAPALI';
-                status1.className = 'relay-status off';
-            }
-            
-            // Röle 2
-            const status2 = document.getElementById('status2');
-            if (data.r2_state === 'ON') {
-                status2.textContent = '🟢 AÇIK';
-                status2.className = 'relay-status on';
-            } else {
-                status2.textContent = '🔴 KAPALI';
-                status2.className = 'relay-status off';
-            }
-            
-            hideError();
-        }
-    } catch (error) {
-        console.error('Durum alınamadı:', error);
-    }
+//--------------------------------------------------
+// VERİ
+//--------------------------------------------------
+let devices = JSON.parse(localStorage.getItem("devices") || "[]");
+
+//--------------------------------------------------
+// CİHAZ EKLE
+//--------------------------------------------------
+function addDevice(){
+  const name = devName.value.trim();
+  const topicSet = devSet.value.trim();
+  const topicState = devState.value.trim();
+  const group = devGroup.value.trim() || "Genel";
+  const ip = devIP.value.trim();
+
+  if(!name || !topicSet || !topicState || !ip){
+    alert("Tüm alanlar dolu olmalı!");
+    return;
+  }
+
+  devices.push({ name, topicSet, topicState, group, ip, state:"?" });
+  localStorage.setItem("devices", JSON.stringify(devices));
+
+  client.subscribe(topicState);
+
+  devName.value = devSet.value = devState.value = devGroup.value = devIP.value = "";
+  buildUI();
 }
 
-// Röle kontrolü
-async function control(relay, action) {
-    const deviceName = document.getElementById('deviceName').value.trim();
-    const ip = document.getElementById('deviceIP').value.trim();
-    
-    // Validasyon
-    if (!deviceName) {
-        showError('❌ Lütfen cihaz adı girin!');
-        return;
-    }
-    
-    if (!ip) {
-        showError('❌ Lütfen IP adresi girin!');
-        return;
-    }
-    
-    // IP formatı kontrolü (basit)
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipPattern.test(ip)) {
-        showError('❌ Geçersiz IP adresi formatı!');
-        return;
-    }
+//--------------------------------------------------
+// ARAYÜZ
+//--------------------------------------------------
+function buildUI(){
+  const groupArea = document.getElementById("groupArea");
+  groupArea.innerHTML = "";
 
-    // Butonları devre dışı bırak
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(btn => btn.disabled = true);
+  const groups = {};
+  devices.forEach((d,i)=>{
+    if(!groups[d.group]) groups[d.group]=[];
+    groups[d.group].push({ ...d, index:i });
+  });
 
-    try {
-        const url = `http://${ip}/control?id=${relay}&action=${action}`;
-        console.log(`📤 Komut gönderiliyor: ${deviceName} - Röle ${relay} → ${action.toUpperCase()}`);
-        
-        const response = await fetch(url, {
-            method: 'GET',
-            mode: 'no-cors' // CORS hatası için
-        });
-        
-        // Başarılı
-        console.log(`✅ Komut gönderildi: ${deviceName} - Röle ${relay} → ${action.toUpperCase()}`);
-        showSuccess(relay, action);
-        
-        // Durum güncelle
-        setTimeout(updateStatus, 500);
-        
-    } catch (error) {
-        console.error('❌ Hata:', error);
-        showError(`❌ Bağlantı hatası: ${deviceName} (${ip})`);
-    } finally {
-        // Butonları tekrar aktif et
-        buttons.forEach(btn => btn.disabled = false);
-    }
+  for(const g in groups){
+    const box = document.createElement("div");
+    box.className = "groupBox";
+
+    box.innerHTML = `
+      <div class="groupHeader">
+        <h2>${g}</h2>
+        <div>
+          <button onclick="groupControl('${g}',1)" style="background:#00e676">AÇ</button>
+          <button onclick="groupControl('${g}',0)" style="background:#ff5252">KAPAT</button>
+        </div>
+      </div>
+      <div class="grid" id="grp_${g}"></div>
+    `;
+
+    groupArea.appendChild(box);
+
+    const grid = box.querySelector(".grid");
+    groups[g].forEach(d=>{
+      const card = document.createElement("div");
+      card.className="card";
+      card.innerHTML=`
+        <h3>${d.name}</h3>
+        <small>${d.ip}</small><br><br>
+        <button id="btn${d.index}" class="btn unknown"
+          onclick="toggle(${d.index})">BİLİNMİYOR</button>
+      `;
+      grid.appendChild(card);
+    });
+  }
 }
 
-// Görsel feedback - başarılı
-function showSuccess(relay, action) {
-    const statusDiv = document.getElementById(`status${relay}`);
-    statusDiv.textContent = action === 'on' ? '🟢 AÇILIYOR...' : '🔴 KAPANIYOR...';
-    statusDiv.className = action === 'on' ? 'relay-status on' : 'relay-status off';
+//--------------------------------------------------
+// MQTT
+//--------------------------------------------------
+client.on("connect", ()=>{
+  devices.forEach(d=>client.subscribe(d.topicState));
+});
+
+client.on("message",(topic,msg)=>{
+  const val = msg.toString();
+  devices.forEach((d,i)=>{
+    if(topic===d.topicState){
+      const btn=document.getElementById("btn"+i);
+      if(!btn) return;
+      if(val==="1"){
+        btn.textContent="AÇIK";
+        btn.className="btn on";
+      }else{
+        btn.textContent="KAPALI";
+        btn.className="btn off";
+      }
+    }
+  });
+});
+
+//--------------------------------------------------
+// KONTROLLER
+//--------------------------------------------------
+function toggle(i){
+  const d=devices[i];
+  const btn=document.getElementById("btn"+i);
+  const state=btn.textContent==="AÇIK"?"0":"1";
+  client.publish(d.topicSet,state,{retain:true});
 }
 
-// Hata mesajı göster
-function showError(message) {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
-    
-    setTimeout(() => {
-        errorDiv.style.display = 'none';
-    }, 3000);
+function turnAll(state){
+  devices.forEach(d=>client.publish(d.topicSet,String(state),{retain:true}));
 }
 
-// Hata mesajını gizle
-function hideError() {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.style.display = 'none';
+function groupControl(group,state){
+  devices.filter(d=>d.group===group)
+    .forEach(d=>client.publish(d.topicSet,String(state),{retain:true}));
 }
 
-// Sayfa yüklendiğinde durum güncelle
-window.onload = () => {
-    updateStatus();
-    // Her 3 saniyede bir durum güncelle
-    setInterval(updateStatus, 3000);
-};
-
-// IP değiştiğinde durum güncelle
-document.getElementById('deviceIP').addEventListener('change', updateStatus);
+//--------------------------------------------------
+buildUI();
 </script>
 
 </body>
