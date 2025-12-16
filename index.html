@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>Merkezi Hub v6.1 - MQTT Kontrol Paneli</title>
+<title>Merkezi Hub v6.2 - MQTT Kontrol Paneli</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -11,44 +11,28 @@ body { font-family: Arial; background:#0f0f0f; color:#eee; margin:0; }
 header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; }
 .container { padding:10px; }
 
-.grid {
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-  gap:14px;
-  padding:10px;
-}
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
 
-.card {
-  background:#1b1b1b;
-  border-radius:14px;
-  padding:12px;
-  border:1px solid #333;
-  box-shadow:0 0 8px #000;
-}
+.card { background:#1b1b1b; border-radius:14px; padding:12px; border:1px solid #333; box-shadow:0 0 8px #000; }
+.card h3 { margin:0 0 6px 0; font-size:16px; color:#00e5ff; }
 
-.card h3 { margin:0 0 8px 0; font-size:16px; color:#00e5ff; }
-
-.btn {
-  width:100%;
-  padding:12px;
-  border:none;
-  border-radius:10px;
-  font-size:15px;
-  cursor:pointer;
-  font-weight:bold;
-}
-
+.btn { width:100%; padding:10px; border:none; border-radius:10px; font-size:14px; cursor:pointer; font-weight:bold; }
 .on { background:#00e676; color:#000; }
 .off { background:#333; color:#ccc; }
 .unknown { background:#555; color:#aaa; }
 
-.groupBox {
-  margin:14px 0;
-  padding:10px;
-  background:#111;
-  border-radius:12px;
-  border:1px solid #333;
+.editBtn {
+  margin-top:6px;
+  width:100%;
+  padding:8px;
+  border:none;
+  border-radius:8px;
+  background:#ff9800;
+  font-weight:bold;
+  cursor:pointer;
 }
+
+.groupBox { margin:14px 0; padding:10px; background:#111; border-radius:12px; border:1px solid #333; }
 
 .groupHeader {
   display:flex;
@@ -56,12 +40,7 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   align-items:center;
   margin-bottom:8px;
 }
-
-.groupHeader h2 {
-  margin:0;
-  font-size:18px;
-  color:#ff9800;
-}
+.groupHeader h2 { margin:0; font-size:18px; color:#ff9800; }
 
 .groupHeader button {
   padding:6px 10px;
@@ -75,7 +54,7 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   background:#111;
   padding:12px;
   border-radius:12px;
-  margin:10px;
+  margin:10px 0;
   border:1px solid #333;
 }
 
@@ -99,173 +78,158 @@ header { background:#222; padding:16px; text-align:center; font-size:22px; color
   border-radius:8px;
   cursor:pointer;
 }
-
-.all-buttons {
-  display:flex;
-  gap:12px;
-  padding:12px;
-}
-.all-buttons button {
-  flex:1;
-  padding:12px;
-  border:none;
-  border-radius:10px;
-  font-size:16px;
-  font-weight:bold;
-  cursor:pointer;
-}
 </style>
 </head>
 
 <body>
 
-<header>MERKEZİ HUB v6.1 (MQTT Gelişmiş Panel)</header>
+<header>MERKEZİ HUB v6.2</header>
 
 <div class="container">
-
-<div class="all-buttons">
-  <button onclick="turnAll(1)" style="background:#00e676;color:#000">TÜMÜNÜ AÇ</button>
-  <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
-</div>
 
 <div id="groupArea"></div>
 
 <div class="addBox">
-  <h3>Yeni Cihaz Ekle</h3>
+  <h3 id="formTitle">Yeni Cihaz Ekle</h3>
   <input id="devName" placeholder="Cihaz Adı">
   <input id="devSet" placeholder="Set Topic">
   <input id="devState" placeholder="State Topic">
-  <input id="devGroup" placeholder="Grup (örn: Bahçe)">
-  <input id="devIP" placeholder="IP Adresi (örn: 192.168.1.113)">
-  <button onclick="addDevice()">CİHAZI EKLE</button>
+  <input id="devGroup" placeholder="Grup">
+  <input id="devIP" placeholder="IP Adresi">
+  <button onclick="saveDevice()">KAYDET</button>
 </div>
 
 </div>
 
 <script>
 //--------------------------------------------------
-// MQTT BAĞLANTI
-//--------------------------------------------------
 const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
-
-//--------------------------------------------------
-// VERİ
-//--------------------------------------------------
 let devices = JSON.parse(localStorage.getItem("devices") || "[]");
+let editIndex = null;
 
 //--------------------------------------------------
-// CİHAZ EKLE
-//--------------------------------------------------
-function addDevice(){
-  const name = devName.value.trim();
-  const topicSet = devSet.value.trim();
-  const topicState = devState.value.trim();
-  const group = devGroup.value.trim() || "Genel";
-  const ip = devIP.value.trim();
+// DEFAULT CİHAZLAR (ilk açılış)
+if(devices.length === 0){
+  devices = [
+    {
+      name:"Bahçe Lamba",
+      topicSet:"nejat/relay/bahce/set",
+      topicState:"nejat/relay/bahce/state",
+      group:"Bahçe",
+      ip:"192.168.1.113"
+    },
+    {
+      name:"Garaj Priz",
+      topicSet:"nejat/relay/garaj/set",
+      topicState:"nejat/relay/garaj/state",
+      group:"Garaj",
+      ip:"192.168.1.114"
+    }
+  ];
+  localStorage.setItem("devices", JSON.stringify(devices));
+}
 
-  if(!name || !topicSet || !topicState || !ip){
-    alert("Tüm alanlar dolu olmalı!");
+//--------------------------------------------------
+function saveDevice(){
+  const d = {
+    name:devName.value.trim(),
+    topicSet:devSet.value.trim(),
+    topicState:devState.value.trim(),
+    group:devGroup.value.trim()||"Genel",
+    ip:devIP.value.trim()
+  };
+
+  if(!d.name || !d.topicSet || !d.topicState || !d.ip){
+    alert("Tüm alanlar dolu olmalı");
     return;
   }
 
-  devices.push({ name, topicSet, topicState, group, ip, state:"?" });
+  if(editIndex === null){
+    devices.push(d);
+    client.subscribe(d.topicState);
+  }else{
+    devices[editIndex] = d;
+    editIndex = null;
+    document.getElementById("formTitle").textContent="Yeni Cihaz Ekle";
+  }
+
   localStorage.setItem("devices", JSON.stringify(devices));
-
-  client.subscribe(topicState);
-
-  devName.value = devSet.value = devState.value = devGroup.value = devIP.value = "";
+  clearForm();
   buildUI();
 }
 
 //--------------------------------------------------
-// ARAYÜZ
+function editDevice(i){
+  const d = devices[i];
+  editIndex = i;
+  formTitle.textContent="Cihaz Düzenle";
+
+  devName.value=d.name;
+  devSet.value=d.topicSet;
+  devState.value=d.topicState;
+  devGroup.value=d.group;
+  devIP.value=d.ip;
+}
+
+//--------------------------------------------------
+function clearForm(){
+  devName.value=devSet.value=devState.value=devGroup.value=devIP.value="";
+}
+
 //--------------------------------------------------
 function buildUI(){
-  const groupArea = document.getElementById("groupArea");
-  groupArea.innerHTML = "";
+  const area=document.getElementById("groupArea");
+  area.innerHTML="";
 
-  const groups = {};
+  const groups={};
   devices.forEach((d,i)=>{
     if(!groups[d.group]) groups[d.group]=[];
-    groups[d.group].push({ ...d, index:i });
+    groups[d.group].push({d,i});
   });
 
   for(const g in groups){
-    const box = document.createElement("div");
-    box.className = "groupBox";
+    const box=document.createElement("div");
+    box.className="groupBox";
+    box.innerHTML=`<div class="groupHeader"><h2>${g}</h2></div><div class="grid"></div>`;
+    area.appendChild(box);
 
-    box.innerHTML = `
-      <div class="groupHeader">
-        <h2>${g}</h2>
-        <div>
-          <button onclick="groupControl('${g}',1)" style="background:#00e676">AÇ</button>
-          <button onclick="groupControl('${g}',0)" style="background:#ff5252">KAPAT</button>
-        </div>
-      </div>
-      <div class="grid" id="grp_${g}"></div>
-    `;
-
-    groupArea.appendChild(box);
-
-    const grid = box.querySelector(".grid");
-    groups[g].forEach(d=>{
-      const card = document.createElement("div");
-      card.className="card";
-      card.innerHTML=`
-        <h3>${d.name}</h3>
-        <small>${d.ip}</small><br><br>
-        <button id="btn${d.index}" class="btn unknown"
-          onclick="toggle(${d.index})">BİLİNMİYOR</button>
+    const grid=box.querySelector(".grid");
+    groups[g].forEach(x=>{
+      const c=document.createElement("div");
+      c.className="card";
+      c.innerHTML=`
+        <h3>${x.d.name}</h3>
+        <small>${x.d.ip}</small><br><br>
+        <button class="btn unknown" id="btn${x.i}" onclick="toggle(${x.i})">BİLİNMİYOR</button>
+        <button class="editBtn" onclick="editDevice(${x.i})">✏️ DÜZENLE</button>
       `;
-      grid.appendChild(card);
+      grid.appendChild(c);
     });
   }
 }
 
 //--------------------------------------------------
-// MQTT
-//--------------------------------------------------
-client.on("connect", ()=>{
-  devices.forEach(d=>client.subscribe(d.topicState));
-});
+client.on("connect",()=>devices.forEach(d=>client.subscribe(d.topicState)));
 
-client.on("message",(topic,msg)=>{
-  const val = msg.toString();
+client.on("message",(t,m)=>{
+  const v=m.toString();
   devices.forEach((d,i)=>{
-    if(topic===d.topicState){
-      const btn=document.getElementById("btn"+i);
-      if(!btn) return;
-      if(val==="1"){
-        btn.textContent="AÇIK";
-        btn.className="btn on";
-      }else{
-        btn.textContent="KAPALI";
-        btn.className="btn off";
-      }
+    if(t===d.topicState){
+      const b=document.getElementById("btn"+i);
+      if(!b) return;
+      if(v==="1"){ b.textContent="AÇIK"; b.className="btn on"; }
+      else { b.textContent="KAPALI"; b.className="btn off"; }
     }
   });
 });
 
 //--------------------------------------------------
-// KONTROLLER
-//--------------------------------------------------
 function toggle(i){
-  const d=devices[i];
-  const btn=document.getElementById("btn"+i);
-  const state=btn.textContent==="AÇIK"?"0":"1";
-  client.publish(d.topicSet,state,{retain:true});
+  const b=document.getElementById("btn"+i);
+  const s=b.textContent==="AÇIK"?"0":"1";
+  client.publish(devices[i].topicSet,s,{retain:true});
 }
 
-function turnAll(state){
-  devices.forEach(d=>client.publish(d.topicSet,String(state),{retain:true}));
-}
-
-function groupControl(group,state){
-  devices.filter(d=>d.group===group)
-    .forEach(d=>client.publish(d.topicSet,String(state),{retain:true}));
-}
-
-//--------------------------------------------------
 buildUI();
 </script>
 
