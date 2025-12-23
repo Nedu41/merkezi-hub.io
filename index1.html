@@ -1,79 +1,163 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>Merkezi Hub v5.5 (MQTT)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<style>
-body { font-family: Arial; background:#121212; color:#eee; margin:0; }
-.header { background:#222; color:#03dac6; padding:12px; text-align:center; }
-.grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap:10px; padding:10px; }
-.card { background:#1e1e1e; border-radius:10px; padding:10px; border:1px solid #333; }
-.btn { padding:10px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; width:100%; }
-.on { background:#03dac6; color:#000; }
-.off { background:#333; color:#ccc; }
-</style>
+    <meta charset="UTF-8">
+    <title>ESP01 Çift Röle Kontrol v2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f12; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; }
+        .card { background: #1a1a1f; border-radius: 15px; padding: 20px; margin-bottom: 20px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        
+        input { background: #25252b; border: 1px solid #444; color: white; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        button { cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        
+        .btn-add { background: #2196f3; color: white; padding: 12px; width: 100%; }
+        .btn-relay { padding: 15px; width: 48%; font-size: 14px; }
+        .on { background: #00c853; color: #000; }
+        .off { background: #333; color: #888; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2196f3; padding-bottom: 10px; margin-bottom: 20px; }
+        .mac-text { font-family: monospace; color: #2196f3; font-size: 12px; }
+        .edit-btn { background: none; color: #ff9800; font-size: 12px; text-decoration: underline; }
+    </style>
 </head>
 <body>
 
-<div class="header">MERKEZİ HUB (DIŞ ERİŞİM - MQTT)</div>
-<div class="grid">
+<div class="container">
+    <div class="header">
+        <h2>ESP01 Çift Röle Paneli</h2>
+        <div id="mqtt-status" style="color: red;">● Bağlı Değil</div>
+    </div>
 
-<div class="card">
-  <h4>RÖLE 1</h4>
-  <button id="r1" class="btn off" onclick="setRelay(1)">...</button>
-</div>
+    <div class="card">
+        <h3 id="form-title">Yeni Cihaz Ekle</h3>
+        <input type="hidden" id="edit-index" value="-1">
+        <input type="text" id="devName" placeholder="Cihaz Adı (Örn: Bahçe Kontrol)">
+        <input type="text" id="devMAC" placeholder="MAC Adresi (İki noktasız: AABBCCDDEEFF)">
+        <button class="btn-add" id="btn-save" onclick="saveDevice()">CİHAZI KAYDET</button>
+        <button id="btn-cancel" onclick="resetForm()" style="display:none; background:none; color:white; margin-top:10px; width:100%;">Vazgeç</button>
+    </div>
 
-<div class="card">
-  <h4>RÖLE 2</h4>
-  <button id="r2" class="btn off" onclick="setRelay(2)">...</button>
-</div>
-
+    <div class="grid" id="deviceGrid"></div>
 </div>
 
 <script>
 const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
-
-const topicSet1   = "nejat/relay/1/set";
-const topicState1 = "nejat/relay/1/state";
-const topicSet2   = "nejat/relay/2/set";
-const topicState2 = "nejat/relay/2/state";
+let devices = JSON.parse(localStorage.getItem("esp01_dual_devices") || "[]");
 
 client.on("connect", () => {
-  console.log("MQTT Bağlandı");
-  client.subscribe(topicState1);
-  client.subscribe(topicState2);
+    document.getElementById("mqtt-status").innerText = "● Bağlı";
+    document.getElementById("mqtt-status").style.color = "#00c853";
+    devices.forEach(d => {
+        client.subscribe(`esp01/${d.mac}/r1/state`);
+        client.subscribe(`esp01/${d.mac}/r2/state`);
+    });
 });
 
-client.on("message", (topic, message) => {
-  const val = message.toString();
+function saveDevice() {
+    const name = document.getElementById('devName').value.trim();
+    const mac = document.getElementById('devMAC').value.trim().toLowerCase().replace(/:/g, "");
+    const editIndex = parseInt(document.getElementById('edit-index').value);
 
-  if(topic === topicState1){
-    const btn = document.getElementById("r1");
-    btn.textContent = val === "1" ? "AÇIK" : "KAPALI";
-    btn.className = "btn " + (val === "1" ? "on" : "off");
-  }
+    if (!name || !mac) { alert("Eksik bilgi!"); return; }
 
-  if(topic === topicState2){
-    const btn = document.getElementById("r2");
-    btn.textContent = val === "1" ? "AÇIK" : "KAPALI";
-    btn.className = "btn " + (val === "1" ? "on" : "off");
-  }
-});
+    const deviceData = {
+        name, mac,
+        r1_status: "0",
+        r2_status: "0"
+    };
 
-function setRelay(id){
-  const btn = document.getElementById(id === 1 ? "r1" : "r2");
-  const isOn = btn.textContent === "AÇIK";
-  const cmd = isOn ? "0" : "1";
+    if (editIndex === -1) {
+        devices.push(deviceData);
+    } else {
+        devices[editIndex] = deviceData;
+    }
 
-  client.publish(
-    id === 1 ? topicSet1 : topicSet2,
-    cmd,
-    {retain:true}
-  );
+    localStorage.setItem("esp01_dual_devices", JSON.stringify(devices));
+    resetForm();
+    buildUI();
+    location.reload(); // Abonelikleri yenilemek için
 }
-</script>
 
+function buildUI() {
+    const grid = document.getElementById("deviceGrid");
+    grid.innerHTML = "";
+
+    devices.forEach((d, index) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+            <div style="display:flex; justify-content:space-between;">
+                <strong>${d.name}</strong>
+                <button class="edit-btn" onclick="editDevice(${index})">Düzenle</button>
+            </div>
+            <div class="mac-text">ID: ${d.mac}</div>
+            
+            <div style="display:flex; justify-content:space-between; margin-top:15px;">
+                <button class="btn-relay ${d.r1_status === '1' ? 'on' : 'off'}" onclick="toggle(${index}, 1)">
+                    RÖLE 1: ${d.r1_status === '1' ? 'AÇIK' : 'KAPALI'}
+                </button>
+                <button class="btn-relay ${d.r2_status === '1' ? 'on' : 'off'}" onclick="toggle(${index}, 2)">
+                    RÖLE 2: ${d.r2_status === '1' ? 'AÇIK' : 'KAPALI'}
+                </button>
+            </div>
+            
+            <button onclick="deleteDevice(${index})" style="background:none; color:#ff5252; margin-top:15px; font-size:11px; cursor:pointer;">Cihazı Sil</button>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+function toggle(index, relayNum) {
+    const d = devices[index];
+    const currentStatus = (relayNum === 1) ? d.r1_status : d.r2_status;
+    const newState = currentStatus === "1" ? "0" : "1";
+    
+    // Topic: esp01/aabbcc/r1/set
+    const topic = `esp01/${d.mac}/r${relayNum}/set`;
+    client.publish(topic, newState, { retain: true });
+}
+
+function editDevice(index) {
+    const d = devices[index];
+    document.getElementById('devName').value = d.name;
+    document.getElementById('devMAC').value = d.mac;
+    document.getElementById('edit-index').value = index;
+    document.getElementById('form-title').innerText = "Cihazı Düzenle";
+    document.getElementById('btn-save').innerText = "GÜNCELLE";
+    document.getElementById('btn-cancel').style.display = "block";
+}
+
+function resetForm() {
+    document.getElementById('devName').value = "";
+    document.getElementById('devMAC').value = "";
+    document.getElementById('edit-index').value = "-1";
+    document.getElementById('form-title').innerText = "Yeni Cihaz Ekle";
+    document.getElementById('btn-save').innerText = "CİHAZI KAYDET";
+    document.getElementById('btn-cancel').style.display = "none";
+}
+
+function deleteDevice(index) {
+    if(confirm("Emin misiniz?")) {
+        devices.splice(index, 1);
+        localStorage.setItem("esp01_dual_devices", JSON.stringify(devices));
+        buildUI();
+    }
+}
+
+client.on("message", (topic, msg) => {
+    const val = msg.toString().trim();
+    devices.forEach((d, index) => {
+        if (topic === `esp01/${d.mac}/r1/state`) d.r1_status = val;
+        if (topic === `esp01/${d.mac}/r2/state`) d.r2_status = val;
+    });
+    buildUI();
+});
+
+buildUI();
+</script>
 </body>
 </html>
