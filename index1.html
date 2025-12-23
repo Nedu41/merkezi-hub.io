@@ -2,120 +2,139 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>ESP01 Merkezi Hub v7.0</title>
+    <title>ESP01 Debug Kontrol</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f0f12; color: #eee; padding: 20px; }
-        .card { background: #1a1a1f; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #333; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
-        input { background: #222; border: 1px solid #444; color: #fff; padding: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; border-radius: 6px; }
-        button { cursor: pointer; border: none; border-radius: 6px; font-weight: bold; padding: 10px; }
-        .btn-relay { width: 48%; margin: 1%; }
-        .on { background: #00e676; color: #000; }
-        .off { background: #333; color: #aaa; }
-        #log { background: #000; color: #00ff00; height: 120px; overflow-y: auto; font-family: monospace; font-size: 11px; padding: 10px; border-radius: 8px; }
+        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
+        .log-box { background: black; color: #00ff00; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; font-size: 12px; border: 1px solid #333; }
+        .device-card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #2196f3; }
+        .relay-card { background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        button { padding: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
+        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 3px; font-size: 12px; }
+        .status-on { background: green; }
+        .status-off { background: red; }
     </style>
 </head>
 <body>
-
-    <div class="card">
-        <h3>MQTT Sunucu Ayarları</h3>
-        <input type="text" id="mqttHost" value="broker.hivemq.com">
-        <button onclick="initMQTT()" style="background: #2196f3; color: white;">SUNUCUYA BAĞLAN</button>
+    <h2>ESP01 Kontrol Test Paneli</h2>
+    
+    <div id="status">MQTT Bağlantısı Bekleniyor...</div>
+    <div class="log-box" id="log">Sistem başlatıldı...<br></div>
+    
+    <div class="device-card">
+        <h3>Cihaz Ayarları</h3>
+        <input type="text" id="macInput" placeholder="MAC (Örn: aabbcc112233)" style="padding:8px; width:250px;">
+        <button onclick="connectDevice()" style="background: #2196f3; color: white;">Bağlan</button>
+        <p style="font-size: 11px; color: #888;">Not: MAC adresini küçük harfle ve iki noktasız girin.</p>
     </div>
-
-    <div class="card">
-        <h3 id="formTitle">Cihaz Ekle / Düzenle</h3>
-        <input type="hidden" id="editIdx" value="-1">
-        <input type="text" id="dName" placeholder="Cihaz Adı">
-        <input type="text" id="dMAC" placeholder="MAC (AABBCCDDEEFF)">
-        <button onclick="saveDevice()" style="background: #00e5ff; width: 100%; color: #000;">KAYDET</button>
+    
+    <div class="device-card" id="controlPanel" style="display:none;">
+        <h3>Röle Kontrolü</h3>
+        
+        <div class="relay-card">
+            <h4>Röle 1 <span class="status-badge status-off" id="r1status">Bilinmiyor</span></h4>
+            <button onclick="sendCommand('r1', '1')" style="background: green; color: white;">AÇ</button>
+            <button onclick="sendCommand('r1', '0')" style="background: red; color: white;">KAPAT</button>
+        </div>
+        
+        <div class="relay-card">
+            <h4>Röle 2 <span class="status-badge status-off" id="r2status">Bilinmiyor</span></h4>
+            <button onclick="sendCommand('r2', '1')" style="background: green; color: white;">AÇ</button>
+            <button onclick="sendCommand('r2', '0')" style="background: red; color: white;">KAPAT</button>
+        </div>
     </div>
-
-    <div class="grid" id="grid"></div>
-
-    <h4>Sistem Logları</h4>
-    <div id="log"></div>
-
-<script>
-    let client;
-    let devices = JSON.parse(localStorage.getItem("hub_v7") || "[]");
-
-    function addLog(m) {
-        const l = document.getElementById('log');
-        l.innerHTML += `> ${m}<br>`;
-        l.scrollTop = l.scrollHeight;
-    }
-
-    function initMQTT() {
-        if(client) client.end();
-        const host = document.getElementById('mqttHost').value;
-        client = mqtt.connect(`wss://${host}:8884/mqtt`);
+    
+    <script>
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+        let currentMac = "";
+        let subscribedTopics = [];
+        
+        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+        
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${time}] ${msg}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
         
         client.on("connect", () => {
-            addLog("Bağlantı kuruldu: " + host);
-            devices.forEach(d => {
-                client.subscribe(`esp01/${d.mac}/r1/state`);
-                client.subscribe(`esp01/${d.mac}/r2/state`);
+            statusEl.innerText = "BAĞLANDI: broker.hivemq.com";
+            statusEl.style.color = "#00ff00";
+            addLog("✓ MQTT Broker'a bağlanıldı.");
+        });
+        
+        client.on("error", (err) => {
+            addLog("✗ HATA: " + err);
+            statusEl.style.color = "#ff0000";
+        });
+        
+        client.on("message", (topic, message) => {
+            const msg = message.toString();
+            addLog(`📨 GERİ BİLDİRİM: ${topic} = ${msg}`);
+            
+            // Durum güncelleme
+            if(topic.includes("/r1/state")) {
+                updateStatus('r1', msg);
+            } else if(topic.includes("/r2/state")) {
+                updateStatus('r2', msg);
+            }
+        });
+        
+        function connectDevice() {
+            const mac = document.getElementById('macInput').value.trim().toLowerCase();
+            if(!mac) { 
+                alert("Lütfen MAC adresini girin!"); 
+                return; 
+            }
+            
+            currentMac = mac;
+            
+            // Eski abonelikleri iptal et
+            subscribedTopics.forEach(topic => client.unsubscribe(topic));
+            subscribedTopics = [];
+            
+            // Yeni abonelikler
+            const topics = [
+                `esp01/${mac}/r1/state`,
+                `esp01/${mac}/r2/state`
+            ];
+            
+            topics.forEach(topic => {
+                client.subscribe(topic);
+                subscribedTopics.push(topic);
+                addLog(`🔔 Abone olundu: ${topic}`);
             });
-        });
-
-        client.on("message", (topic, msg) => {
-            const val = msg.toString();
-            addLog(`Geri Bildirim: ${topic} = ${val}`);
-            devices.forEach(d => {
-                if(topic === `esp01/${d.mac}/r1/state`) d.r1 = val;
-                if(topic === `esp01/${d.mac}/r2/state`) d.r2 = val;
+            
+            document.getElementById('controlPanel').style.display = 'block';
+            addLog(`✓ Cihaz bağlandı: ${mac}`);
+        }
+        
+        function sendCommand(relay, value) {
+            if(!currentMac) { 
+                alert("Önce cihaza bağlanın!"); 
+                return; 
+            }
+            
+            const topic = `esp01/${currentMac}/${relay}/set`;
+            addLog(`📤 Gönderiliyor: ${topic} = ${value}`);
+            
+            client.publish(topic, value, { qos: 0, retain: true }, (err) => {
+                if(err) addLog(`✗ Gönderim HATASI: ${err}`);
+                else addLog(`✓ Komut gönderildi.`);
             });
-            render();
-        });
-    }
-
-    function saveDevice() {
-        const name = document.getElementById('dName').value;
-        const mac = document.getElementById('dMAC').value.toLowerCase().replace(/:/g, "");
-        const idx = parseInt(document.getElementById('editIdx').value);
-
-        if(idx === -1) devices.push({name, mac, r1:"0", r2:"0"});
-        else devices[idx] = { ...devices[idx], name, mac };
-
-        localStorage.setItem("hub_v7", JSON.stringify(devices));
-        location.reload();
-    }
-
-    function render() {
-        const g = document.getElementById('grid');
-        g.innerHTML = "";
-        devices.forEach((d, i) => {
-            const c = document.createElement("div");
-            c.className = "card";
-            c.innerHTML = `
-                <strong>${d.name}</strong> <small>(${d.mac})</small>
-                <div style="margin-top:10px;">
-                    <button class="btn-relay ${d.r1==='1'?'on':'off'}" onclick="send(${i}, 1)">R1: ${d.r1==='1'?'AÇIK':'KAPALI'}</button>
-                    <button class="btn-relay ${d.r2==='1'?'on':'off'}" onclick="send(${i}, 2)">R2: ${d.r2==='1'?'AÇIK':'KAPALI'}</button>
-                </div>
-                <button onclick="edit(${i})" style="font-size:10px; color:#aaa; background:none;">Düzenle</button>
-            `;
-            g.appendChild(c);
-        });
-    }
-
-    function send(i, r) {
-        const d = devices[i];
-        const next = (r === 1 ? d.r1 : d.r2) === "1" ? "0" : "1";
-        client.publish(`esp01/${d.mac}/r${r}/set`, next, {retain: true});
-    }
-
-    function edit(i) {
-        document.getElementById('dName').value = devices[i].name;
-        document.getElementById('dMAC').value = devices[i].mac;
-        document.getElementById('editIdx').value = i;
-        document.getElementById('formTitle').innerText = "Cihazı Güncelle";
-    }
-
-    initMQTT();
-    render();
-</script>
+        }
+        
+        function updateStatus(relay, value) {
+            const statusEl = document.getElementById(relay + 'status');
+            if(value === "1") {
+                statusEl.textContent = "AÇIK";
+                statusEl.className = "status-badge status-on";
+            } else {
+                statusEl.textContent = "KAPALI";
+                statusEl.className = "status-badge status-off";
+            }
+        }
+    </script>
 </body>
 </html>
