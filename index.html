@@ -1,170 +1,1266 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MQTT Cihaz Kontrol Hub</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP01 Röle Kontrol Paneli</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
 
-<style>
-body{margin:0;font-family:Segoe UI;background:#121212;color:#eee}
-header{background:#1e1e1e;padding:12px;text-align:center;color:#03dac6;font-weight:bold}
-.container{padding:10px;max-width:1100px;margin:auto}
-.box{background:#1f1f1f;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
-.device{background:#181818;border:1px solid #333;border-radius:8px;padding:10px}
-.dev-head{display:flex;justify-content:space-between;align-items:center}
-.dot{width:10px;height:10px;border-radius:50%}
-.on{background:#4CAF50}
-.off{background:#cf6679}
-.btn{width:100%;padding:8px;margin-top:6px;border:none;border-radius:5px;font-size:14px;cursor:pointer}
-.btn-on{background:#03dac6;color:#000}
-.btn-off{background:#333;color:#eee}
-.btn-del{background:#cf6679;color:#fff}
-input{width:100%;padding:6px;margin-top:5px;background:#111;color:#fff;border:1px solid #333;border-radius:4px}
-small{color:#888;font-size:12px}
-</style>
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.2);
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            padding: 25px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            color: #444;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title i {
+            color: #667eea;
+        }
+
+        .device-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .device-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+            transition: all 0.3s;
+            border-left: 5px solid #667eea;
+            position: relative;
+        }
+
+        .device-card:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 1.2rem;
+            color: #333;
+        }
+
+        .device-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .relay-control {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .relay-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 10px;
+            border: 1px solid #eee;
+        }
+
+        .relay-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .relay-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .relay-state {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .state-on {
+            color: #28a745;
+        }
+
+        .state-off {
+            color: #dc3545;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background-color: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .schedule-days {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .day-checkbox {
+            display: none;
+        }
+
+        .day-label {
+            display: inline-block;
+            padding: 8px 15px;
+            background-color: #f0f0f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            user-select: none;
+        }
+
+        .day-checkbox:checked + .day-label {
+            background-color: #667eea;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 15px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            animation: modalFadeIn 0.3s;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+        }
+
+        .close {
+            font-size: 1.8rem;
+            color: #999;
+            cursor: pointer;
+            background: none;
+            border: none;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time-inputs input {
+            width: 70px;
+            text-align: center;
+        }
+
+        .separator {
+            color: #999;
+            font-weight: bold;
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .device-list {
+                grid-template-columns: 1fr;
+            }
+            
+            .row {
+                flex-direction: column;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
-
 <body>
-<header>🔌 MQTT MERKEZİ KONTROL HUB</header>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-microchip"></i> ESP01 Röle Kontrol Paneli</h1>
+            <p>ESP01 cihazlarınızı uzaktan yönetin ve zamanlama ayarları yapın</p>
+        </div>
 
-<div class="container">
+        <div id="alert-area"></div>
 
-<div class="box">
-<h3>MQTT Bağlantı</h3>
-<input id="broker" value="wss://broker.hivemq.com:8884/mqtt">
-<input id="user" placeholder="Kullanıcı (opsiyonel)">
-<input id="pass" type="password" placeholder="Şifre (opsiyonel)">
-<button class="btn btn-on" onclick="mqttConnect()">Bağlan</button>
-</div>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('devices')">Cihazlar</div>
+            <div class="tab" onclick="switchTab('add-device')">Cihaz Ekle</div>
+            <div class="tab" onclick="switchTab('mqtt-config')">MQTT Ayarları</div>
+        </div>
 
-<div class="box">
-<h3>Cihaz Ekle / Düzenle</h3>
-<input id="devName" placeholder="Cihaz Adı">
-<input id="devMac" placeholder="MAC ID (küçük harf, :) yok)">
-<input id="devIp" placeholder="IP Adresi (bilgi amaçlı)">
-<button class="btn btn-on" onclick="addOrUpdate()">Kaydet</button>
-</div>
+        <!-- Cihazlar Sekmesi -->
+        <div id="devices" class="tab-content active">
+            <div class="card">
+                <h2 class="card-title"><i class="fas fa-list"></i> Kayıtlı Cihazlar</h2>
+                <div id="device-list-container" class="device-list">
+                    <!-- Cihazlar buraya dinamik olarak eklenecek -->
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Henüz cihaz eklenmemiş. "Cihaz Ekle" sekmesinden yeni bir cihaz ekleyin.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<div class="grid" id="deviceList"></div>
+        <!-- Cihaz Ekleme Sekmesi -->
+        <div id="add-device" class="tab-content">
+            <div class="card">
+                <h2 class="card-title"><i class="fas fa-plus-circle"></i> Yeni Cihaz Ekle</h2>
+                <form id="add-device-form">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="device-name">Cihaz Adı</label>
+                                <input type="text" class="form-control" id="device-name" placeholder="Örn: Salon Lambası" required>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="device-ip">IP Adresi</label>
+                                <input type="text" class="form-control" id="device-ip" placeholder="Örn: 192.168.1.100" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="device-mac">MAC Adresi (Opsiyonel)</label>
+                                <input type="text" class="form-control" id="device-mac" placeholder="Örn: a1b2c3d4e5f6">
+                                <small>MAC adresi otomatik olarak da alınabilir</small>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label">Röle Sayısı</label>
+                                <div>
+                                    <label style="margin-right: 20px;">
+                                        <input type="radio" name="relay-count" value="1" checked> 1 Röle
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="relay-count" value="2"> 2 Röle
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="relay1-name">Röle 1 Adı</label>
+                                <input type="text" class="form-control" id="relay1-name" placeholder="Örn: Ana Lamba" value="Röle 1">
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="relay2-name">Röle 2 Adı</label>
+                                <input type="text" class="form-control" id="relay2-name" placeholder="Örn: Yardımcı Lamba" value="Röle 2" disabled>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Cihazı Kaydet
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="getDeviceInfo()">
+                            <i class="fas fa-sync-alt"></i> Cihaz Bilgilerini Otomatik Al
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-</div>
+        <!-- MQTT Ayarları Sekmesi -->
+        <div id="mqtt-config" class="tab-content">
+            <div class="card">
+                <h2 class="card-title"><i class="fas fa-server"></i> MQTT Sunucu Ayarları</h2>
+                <form id="mqtt-form">
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="mqtt-server">MQTT Sunucu</label>
+                                <input type="text" class="form-control" id="mqtt-server" placeholder="Örn: broker.hivemq.com" value="broker.hivemq.com" required>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="mqtt-port">MQTT Port</label>
+                                <input type="number" class="form-control" id="mqtt-port" placeholder="Örn: 1883" value="1883" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="mqtt-user">Kullanıcı Adı (Opsiyonel)</label>
+                                <input type="text" class="form-control" id="mqtt-user" placeholder="MQTT kullanıcı adı">
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="form-group">
+                                <label class="form-label" for="mqtt-pass">Şifre (Opsiyonel)</label>
+                                <input type="password" class="form-control" id="mqtt-pass" placeholder="MQTT şifresi">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> MQTT Ayarlarını Kaydet
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="testMqttConnection()">
+                            <i class="fas fa-plug"></i> Bağlantıyı Test Et
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
-<script>
-let client;
-let devices = JSON.parse(localStorage.getItem("devices") || "[]");
-let states = {};
-let lastSeen = {};
-let editIndex = -1;
+    <!-- Cihaz Düzenleme Modalı -->
+    <div id="edit-device-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-edit"></i> Cihazı Düzenle</h3>
+                <button class="close" onclick="closeModal('edit-device-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-device-form">
+                    <input type="hidden" id="edit-device-id">
+                    <div class="form-group">
+                        <label class="form-label" for="edit-device-name">Cihaz Adı</label>
+                        <input type="text" class="form-control" id="edit-device-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-device-ip">IP Adresi</label>
+                        <input type="text" class="form-control" id="edit-device-ip" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Röle Adları</label>
+                        <div class="row">
+                            <div class="col">
+                                <input type="text" class="form-control" id="edit-relay1-name" placeholder="Röle 1 Adı" required>
+                            </div>
+                            <div class="col">
+                                <input type="text" class="form-control" id="edit-relay2-name" placeholder="Röle 2 Adı">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-warning" onclick="closeModal('edit-device-modal')">İptal</button>
+                <button class="btn btn-primary" onclick="saveDeviceEdit()">Kaydet</button>
+            </div>
+        </div>
+    </div>
 
-function save(){ localStorage.setItem("devices", JSON.stringify(devices)); }
+    <!-- Zamanlama Ayarları Modalı -->
+    <div id="schedule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-clock"></i> Zamanlama Ayarları</h3>
+                <button class="close" onclick="closeModal('schedule-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="schedule-form">
+                    <input type="hidden" id="schedule-device-id">
+                    <input type="hidden" id="schedule-relay-id">
+                    
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                            <input type="checkbox" id="schedule-active" style="width: auto;">
+                            <label for="schedule-active" style="margin: 0; font-weight: 600;">Zamanlamayı Aktif Et</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Çalışma Günleri</label>
+                        <div class="schedule-days">
+                            <input type="checkbox" id="day-mon" class="day-checkbox" value="1">
+                            <label for="day-mon" class="day-label">Pzt</label>
+                            
+                            <input type="checkbox" id="day-tue" class="day-checkbox" value="2">
+                            <label for="day-tue" class="day-label">Sal</label>
+                            
+                            <input type="checkbox" id="day-wed" class="day-checkbox" value="4">
+                            <label for="day-wed" class="day-label">Çar</label>
+                            
+                            <input type="checkbox" id="day-thu" class="day-checkbox" value="8">
+                            <label for="day-thu" class="day-label">Per</label>
+                            
+                            <input type="checkbox" id="day-fri" class="day-checkbox" value="16">
+                            <label for="day-fri" class="day-label">Cum</label>
+                            
+                            <input type="checkbox" id="day-sat" class="day-checkbox" value="32">
+                            <label for="day-sat" class="day-label">Cmt</label>
+                            
+                            <input type="checkbox" id="day-sun" class="day-checkbox" value="64">
+                            <label for="day-sun" class="day-label">Paz</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Çalışma Saatleri</label>
+                        <div class="time-inputs">
+                            <input type="number" class="form-control" id="start-hour" min="0" max="23" placeholder="Saat" required>
+                            <span class="separator">:</span>
+                            <input type="number" class="form-control" id="start-minute" min="0" max="59" placeholder="Dakika" required>
+                            <span style="margin: 0 10px;">-</span>
+                            <input type="number" class="form-control" id="end-hour" min="0" max="23" placeholder="Saat" required>
+                            <span class="separator">:</span>
+                            <input type="number" class="form-control" id="end-minute" min="0" max="59" placeholder="Dakika" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-warning" onclick="closeModal('schedule-modal')">İptal</button>
+                <button class="btn btn-primary" onclick="saveSchedule()">Zamanlamayı Kaydet</button>
+            </div>
+        </div>
+    </div>
 
-function mqttConnect(){
- client = mqtt.connect(broker.value,{
-   username:user.value || undefined,
-   password:pass.value || undefined,
-   reconnectPeriod:3000
- });
+    <div class="footer">
+        <p>ESP01 Röle Kontrol Paneli v1.0 | Tüm hakları saklıdır © 2023</p>
+    </div>
 
- client.on("connect", ()=>{
-   devices.forEach(d=>{
-     client.subscribe(`esp01/${d.mac}/r1/state`);
-     client.subscribe(`esp01/${d.mac}/r2/state`);
-   });
- });
+    <script>
+        // Sekmeler arasında geçiş yapma
+        function switchTab(tabName) {
+            // Tüm sekmeleri ve içerikleri gizle
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Seçilen sekme ve içeriği göster
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
 
- client.on("message",(topic,payload)=>{
-   const msg = payload.toString();
-   const parts = topic.split("/");
-   const mac = parts[1];
-   const relay = topic.includes("r1") ? 1 : 2;
+        // Modal açma/kapatma fonksiyonları
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+        }
 
-   states[mac] = states[mac] || {};
-   states[mac][relay] = msg;
-   lastSeen[mac] = Date.now();
-   render();
- });
-}
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
 
-function addOrUpdate(){
- const name = devName.value.trim();
- const mac = devMac.value.trim();
- const ip  = devIp.value.trim();
- if(!name || !mac) return alert("Ad ve MAC zorunlu");
+        // Röle sayısı değiştiğinde ikinci röle adını etkinleştir/devre dışı bırak
+        document.querySelectorAll('input[name="relay-count"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const relay2Name = document.getElementById('relay2-name');
+                relay2Name.disabled = this.value === '1';
+                if (this.value === '1') {
+                    relay2Name.value = '';
+                }
+            });
+        });
 
- if(editIndex >= 0){
-   devices[editIndex] = {name, mac, ip};
-   editIndex = -1;
- } else {
-   devices.push({name, mac, ip});
-   if(client){
-     client.subscribe(`esp01/${mac}/r1/state`);
-     client.subscribe(`esp01/${mac}/r2/state`);
-   }
- }
- save();
- clearForm();
- render();
-}
+        // Cihaz bilgilerini otomatik alma
+        async function getDeviceInfo() {
+            const ip = document.getElementById('device-ip').value.trim();
+            if (!ip) {
+                showAlert('Lütfen bir IP adresi girin', 'error');
+                return;
+            }
+            
+            showAlert('Cihaz bilgileri alınıyor...', 'info');
+            
+            try {
+                // MAC adresini al
+                const macResponse = await fetch(`http://${ip}/mac`);
+                if (!macResponse.ok) throw new Error('MAC adresi alınamadı');
+                
+                const mac = await macResponse.text();
+                document.getElementById('device-mac').value = mac;
+                
+                // Topic bilgilerini al
+                const topicResponse = await fetch(`http://${ip}/topics`);
+                if (topicResponse.ok) {
+                    const topics = await topicResponse.text();
+                    showAlert(`Cihaz bilgileri başarıyla alındı. MAC: ${mac}`, 'success');
+                } else {
+                    showAlert(`MAC adresi alındı: ${mac}`, 'success');
+                }
+                
+                // Durum bilgilerini al
+                const statusResponse = await fetch(`http://${ip}/status`);
+                if (statusResponse.ok) {
+                    const status = await statusResponse.json();
+                    showAlert('Cihaz bağlantısı başarılı!', 'success');
+                }
+            } catch (error) {
+                showAlert(`Cihaz bilgileri alınamadı: ${error.message}`, 'error');
+            }
+        }
 
-function clearForm(){
- devName.value=""; devMac.value=""; devIp.value="";
-}
+        // Cihaz ekleme formu
+        document.getElementById('add-device-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const deviceName = document.getElementById('device-name').value.trim();
+            const deviceIp = document.getElementById('device-ip').value.trim();
+            const deviceMac = document.getElementById('device-mac').value.trim();
+            const relayCount = document.querySelector('input[name="relay-count"]:checked').value;
+            const relay1Name = document.getElementById('relay1-name').value.trim();
+            const relay2Name = document.getElementById('relay2-name').value.trim();
+            
+            if (!deviceName || !deviceIp) {
+                showAlert('Lütfen cihaz adı ve IP adresini girin', 'error');
+                return;
+            }
+            
+            // Yeni cihaz oluştur
+            const newDevice = {
+                id: Date.now().toString(),
+                name: deviceName,
+                ip: deviceIp,
+                mac: deviceMac || `esp_${Math.random().toString(36).substr(2, 9)}`,
+                relayCount: parseInt(relayCount),
+                relayNames: {
+                    r1: relay1Name || 'Röle 1',
+                    r2: relay2Name || 'Röle 2'
+                },
+                status: 'online',
+                relays: {
+                    r1: { state: 'off', schedule: null },
+                    r2: { state: 'off', schedule: null }
+                },
+                lastSeen: new Date().toISOString()
+            };
+            
+            // Cihazı localStorage'a kaydet
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            devices.push(newDevice);
+            localStorage.setItem('esp01_devices', JSON.stringify(devices));
+            
+            // Formu temizle
+            document.getElementById('add-device-form').reset();
+            document.getElementById('relay2-name').disabled = true;
+            
+            // Cihaz listesini güncelle
+            loadDevices();
+            
+            // Cihazlar sekmesine geç
+            switchTab('devices');
+            
+            showAlert(`"${deviceName}" cihazı başarıyla eklendi!`, 'success');
+        });
 
-function toggle(mac, relay){
- const current = states[mac]?.[relay] === "1";
- client.publish(`esp01/${mac}/r${relay}/set`, current ? "0" : "1", {retain:true});
-}
+        // MQTT ayarlarını kaydet
+        document.getElementById('mqtt-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const mqttConfig = {
+                server: document.getElementById('mqtt-server').value.trim(),
+                port: document.getElementById('mqtt-port').value.trim(),
+                username: document.getElementById('mqtt-user').value.trim(),
+                password: document.getElementById('mqtt-pass').value.trim()
+            };
+            
+            localStorage.setItem('esp01_mqtt_config', JSON.stringify(mqttConfig));
+            showAlert('MQTT ayarları kaydedildi!', 'success');
+        });
 
-function isOnline(mac){
- return lastSeen[mac] && (Date.now() - lastSeen[mac] < 15000);
-}
+        // MQTT bağlantısını test et
+        async function testMqttConnection() {
+            showAlert('MQTT bağlantısı test ediliyor...', 'info');
+            // Burada gerçek MQTT bağlantı testi yapılabilir
+            setTimeout(() => {
+                showAlert('MQTT bağlantı testi tamamlandı (simülasyon)', 'info');
+            }, 1500);
+        }
 
-function editDevice(i){
- const d = devices[i];
- devName.value=d.name;
- devMac.value=d.mac;
- devIp.value=d.ip;
- editIndex=i;
-}
+        // Cihaz listesini yükle
+        function loadDevices() {
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const deviceListContainer = document.getElementById('device-list-container');
+            
+            if (devices.length === 0) {
+                deviceListContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Henüz cihaz eklenmemiş. "Cihaz Ekle" sekmesinden yeni bir cihaz ekleyin.</span>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            devices.forEach(device => {
+                html += `
+                    <div class="device-card" id="device-${device.id}">
+                        <div class="device-header">
+                            <div class="device-name">${device.name}</div>
+                            <div class="device-status status-${device.status}">
+                                ${device.status === 'online' ? 'Çevrimiçi' : 'Çevrimdışı'}
+                            </div>
+                        </div>
+                        
+                        <div class="device-info">
+                            <p><i class="fas fa-wifi"></i> IP: ${device.ip}</p>
+                            <p><i class="fas fa-microchip"></i> MAC: ${device.mac}</p>
+                            <p><i class="fas fa-clock"></i> Son Görülme: ${new Date(device.lastSeen).toLocaleString()}</p>
+                        </div>
+                        
+                        <div class="relay-control">
+                            <div class="relay-item">
+                                <div class="relay-info">
+                                    <div class="relay-name">${device.relayNames.r1}</div>
+                                    <div class="relay-state state-${device.relays.r1.state}">
+                                        Durum: ${device.relays.r1.state === 'on' ? 'AÇIK' : 'KAPALI'}
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm ${device.relays.r1.state === 'on' ? 'btn-danger' : 'btn-success'}" 
+                                            onclick="toggleRelay('${device.id}', 'r1')">
+                                        ${device.relays.r1.state === 'on' ? 
+                                            '<i class="fas fa-power-off"></i> Kapat' : 
+                                            '<i class="fas fa-power-off"></i> Aç'}
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" onclick="openScheduleModal('${device.id}', 'r1')">
+                                        <i class="fas fa-clock"></i> Zamanlama
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            ${device.relayCount > 1 ? `
+                            <div class="relay-item">
+                                <div class="relay-info">
+                                    <div class="relay-name">${device.relayNames.r2}</div>
+                                    <div class="relay-state state-${device.relays.r2.state}">
+                                        Durum: ${device.relays.r2.state === 'on' ? 'AÇIK' : 'KAPALI'}
+                                    </div>
+                                </div>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm ${device.relays.r2.state === 'on' ? 'btn-danger' : 'btn-success'}" 
+                                            onclick="toggleRelay('${device.id}', 'r2')">
+                                        ${device.relays.r2.state === 'on' ? 
+                                            '<i class="fas fa-power-off"></i> Kapat' : 
+                                            '<i class="fas fa-power-off"></i> Aç'}
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" onclick="openScheduleModal('${device.id}', 'r2')">
+                                        <i class="fas fa-clock"></i> Zamanlama
+                                    </button>
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="device-actions">
+                            <button class="btn btn-sm btn-primary" onclick="editDevice('${device.id}')">
+                                <i class="fas fa-edit"></i> Düzenle
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="refreshDevice('${device.id}')">
+                                <i class="fas fa-sync-alt"></i> Yenile
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteDevice('${device.id}')">
+                                <i class="fas fa-trash"></i> Sil
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            deviceListContainer.innerHTML = html;
+        }
 
-function deleteDevice(i){
- if(confirm("Cihaz silinsin mi?")){
-   devices.splice(i,1);
-   save();
-   render();
- }
-}
+        // Röle durumunu değiştir
+        async function toggleRelay(deviceId, relayId) {
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            
+            if (deviceIndex === -1) return;
+            
+            const device = devices[deviceIndex];
+            const currentState = device.relays[relayId].state;
+            const newState = currentState === 'on' ? 'off' : 'on';
+            
+            try {
+                // Gerçek cihaza HTTP isteği gönder
+                const response = await fetch(`http://${device.ip}/control?id=${relayId === 'r1' ? 1 : 2}&action=${newState}`);
+                
+                if (response.ok) {
+                    // Durumu güncelle
+                    device.relays[relayId].state = newState;
+                    device.lastSeen = new Date().toISOString();
+                    
+                    // Güncellenmiş cihazı kaydet
+                    devices[deviceIndex] = device;
+                    localStorage.setItem('esp01_devices', JSON.stringify(devices));
+                    
+                    // Cihaz listesini yenile
+                    loadDevices();
+                    
+                    showAlert(`${device.relayNames[relayId]} ${newState === 'on' ? 'açıldı' : 'kapandı'}`, 'success');
+                } else {
+                    throw new Error('Cihaz yanıt vermedi');
+                }
+            } catch (error) {
+                showAlert(`Röle değiştirilemedi: ${error.message}`, 'error');
+            }
+        }
 
-function render(){
- const list = document.getElementById("deviceList");
- list.innerHTML="";
- devices.forEach((d,i)=>{
-   const s = states[d.mac] || {};
-   list.innerHTML += `
-   <div class="device">
-     <div class="dev-head">
-       <b>${d.name}</b>
-       <div class="dot ${isOnline(d.mac)?"on":"off"}"></div>
-     </div>
-     <small>MAC: ${d.mac}</small><br>
-     <small>IP: ${d.ip || "-"}</small>
+        // Cihaz düzenleme modalını aç
+        function editDevice(deviceId) {
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const device = devices.find(d => d.id === deviceId);
+            
+            if (!device) return;
+            
+            document.getElementById('edit-device-id').value = deviceId;
+            document.getElementById('edit-device-name').value = device.name;
+            document.getElementById('edit-device-ip').value = device.ip;
+            document.getElementById('edit-relay1-name').value = device.relayNames.r1;
+            document.getElementById('edit-relay2-name').value = device.relayNames.r2 || '';
+            
+            openModal('edit-device-modal');
+        }
 
-     <button class="btn ${s[1]==="1"?"btn-on":"btn-off"}"
-       onclick="toggle('${d.mac}',1)">Röle 1 ${s[1]==="1"?"AÇIK":"KAPALI"}</button>
+        // Cihaz düzenlemeyi kaydet
+        function saveDeviceEdit() {
+            const deviceId = document.getElementById('edit-device-id').value;
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            
+            if (deviceIndex === -1) return;
+            
+            devices[deviceIndex].name = document.getElementById('edit-device-name').value.trim();
+            devices[deviceIndex].ip = document.getElementById('edit-device-ip').value.trim();
+            devices[deviceIndex].relayNames.r1 = document.getElementById('edit-relay1-name').value.trim();
+            devices[deviceIndex].relayNames.r2 = document.getElementById('edit-relay2-name').value.trim() || 'Röle 2';
+            
+            localStorage.setItem('esp01_devices', JSON.stringify(devices));
+            closeModal('edit-device-modal');
+            loadDevices();
+            
+            showAlert('Cihaz bilgileri güncellendi!', 'success');
+        }
 
-     <button class="btn ${s[2]==="1"?"btn-on":"btn-off"}"
-       onclick="toggle('${d.mac}',2)">Röle 2 ${s[2]==="1"?"AÇIK":"KAPALI"}</button>
+        // Cihazı sil
+        function deleteDevice(deviceId) {
+            if (!confirm('Bu cihazı silmek istediğinize emin misiniz?')) return;
+            
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const updatedDevices = devices.filter(d => d.id !== deviceId);
+            
+            localStorage.setItem('esp01_devices', JSON.stringify(updatedDevices));
+            loadDevices();
+            
+            showAlert('Cihaz silindi!', 'success');
+        }
 
-     <button class="btn" onclick="editDevice(${i})">✏️ Düzenle</button>
-     <button class="btn btn-del" onclick="deleteDevice(${i})">🗑 Sil</button>
-   </div>`;
- });
-}
+        // Cihazı yenile (durum bilgilerini güncelle)
+        async function refreshDevice(deviceId) {
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            
+            if (deviceIndex === -1) return;
+            
+            const device = devices[deviceIndex];
+            
+            try {
+                const response = await fetch(`http://${device.ip}/status`);
+                if (!response.ok) throw new Error('Cihaz yanıt vermedi');
+                
+                const status = await response.json();
+                
+                // Durumu güncelle
+                device.relays.r1.state = status.r1_state === 'ON' ? 'on' : 'off';
+                device.relays.r2.state = status.r2_state === 'ON' ? 'on' : 'off';
+                device.lastSeen = new Date().toISOString();
+                device.status = 'online';
+                
+                devices[deviceIndex] = device;
+                localStorage.setItem('esp01_devices', JSON.stringify(devices));
+                loadDevices();
+                
+                showAlert('Cihaz durumu güncellendi!', 'success');
+            } catch (error) {
+                device.status = 'offline';
+                devices[deviceIndex] = device;
+                localStorage.setItem('esp01_devices', JSON.stringify(devices));
+                loadDevices();
+                
+                showAlert('Cihaz çevrimdışı görünüyor', 'error');
+            }
+        }
 
-render();
-</script>
+        // Zamanlama modalını aç
+        function openScheduleModal(deviceId, relayId) {
+            document.getElementById('schedule-device-id').value = deviceId;
+            document.getElementById('schedule-relay-id').value = relayId;
+            
+            // Mevcut zamanlama ayarlarını yükle
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const device = devices.find(d => d.id === deviceId);
+            
+            if (device && device.relays[relayId].schedule) {
+                const schedule = device.relays[relayId].schedule;
+                
+                document.getElementById('schedule-active').checked = schedule.active;
+                
+                // Günleri işaretle
+                const days = schedule.days;
+                document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+                    checkbox.checked = (days & parseInt(checkbox.value)) !== 0;
+                });
+                
+                // Saatleri ayarla
+                const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+                const [endHour, endMinute] = schedule.endTime.split(':').map(Number);
+                
+                document.getElementById('start-hour').value = startHour;
+                document.getElementById('start-minute').value = startMinute;
+                document.getElementById('end-hour').value = endHour;
+                document.getElementById('end-minute').value = endMinute;
+            } else {
+                // Varsayılan değerler
+                document.getElementById('schedule-active').checked = false;
+                document.querySelectorAll('.day-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                document.getElementById('start-hour').value = 8;
+                document.getElementById('start-minute').value = 0;
+                document.getElementById('end-hour').value = 18;
+                document.getElementById('end-minute').value = 0;
+            }
+            
+            openModal('schedule-modal');
+        }
+
+        // Zamanlamayı kaydet
+        async function saveSchedule() {
+            const deviceId = document.getElementById('schedule-device-id').value;
+            const relayId = document.getElementById('schedule-relay-id').value;
+            
+            const schedule = {
+                active: document.getElementById('schedule-active').checked,
+                days: 0,
+                startTime: `${document.getElementById('start-hour').value.padStart(2, '0')}:${document.getElementById('start-minute').value.padStart(2, '0')}`,
+                endTime: `${document.getElementById('end-hour').value.padStart(2, '0')}:${document.getElementById('end-minute').value.padStart(2, '0')}`
+            };
+            
+            // Seçili günleri topla
+            document.querySelectorAll('.day-checkbox:checked').forEach(checkbox => {
+                schedule.days += parseInt(checkbox.value);
+            });
+            
+            // Cihazı güncelle
+            const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            
+            if (deviceIndex !== -1) {
+                devices[deviceIndex].relays[relayId].schedule = schedule;
+                localStorage.setItem('esp01_devices', JSON.stringify(devices));
+                
+                // Gerçek cihaza zamanlamayı kaydet
+                try {
+                    const relayNum = relayId === 'r1' ? 1 : 2;
+                    const device = devices[deviceIndex];
+                    
+                    const url = `http://${device.ip}/save?relay_id=${relayNum}&days=${schedule.days}&active=${schedule.active ? 1 : 0}&start_h=${document.getElementById('start-hour').value}&start_m=${document.getElementById('start-minute').value}&end_h=${document.getElementById('end-hour').value}&end_m=${document.getElementById('end-minute').value}`;
+                    
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        showAlert('Zamanlama kaydedildi ve cihaza gönderildi!', 'success');
+                    } else {
+                        showAlert('Zamanlama cihaza gönderilemedi, ancak yerel olarak kaydedildi', 'warning');
+                    }
+                } catch (error) {
+                    showAlert('Zamanlama yerel olarak kaydedildi, ancak cihaza gönderilemedi', 'warning');
+                }
+            }
+            
+            closeModal('schedule-modal');
+            loadDevices();
+        }
+
+        // Bildirim göster
+        function showAlert(message, type = 'info') {
+            const alertArea = document.getElementById('alert-area');
+            const alertId = 'alert-' + Date.now();
+            
+            const icon = {
+                'success': 'fa-check-circle',
+                'error': 'fa-exclamation-circle',
+                'info': 'fa-info-circle',
+                'warning': 'fa-exclamation-triangle'
+            }[type];
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.id = alertId;
+            alert.innerHTML = `
+                <i class="fas ${icon}"></i>
+                <span>${message}</span>
+                <button style="margin-left: auto; background: none; border: none; color: inherit; cursor: pointer;" onclick="document.getElementById('${alertId}').remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            alertArea.appendChild(alert);
+            
+            // 5 saniye sonra otomatik kaldır
+            setTimeout(() => {
+                if (document.getElementById(alertId)) {
+                    document.getElementById(alertId).remove();
+                }
+            }, 5000);
+        }
+
+        // Sayfa yüklendiğinde çalışacak kod
+        document.addEventListener('DOMContentLoaded', function() {
+            // MQTT ayarlarını yükle
+            const mqttConfig = JSON.parse(localStorage.getItem('esp01_mqtt_config') || '{}');
+            if (mqttConfig.server) {
+                document.getElementById('mqtt-server').value = mqttConfig.server;
+                document.getElementById('mqtt-port').value = mqttConfig.port || '1883';
+                document.getElementById('mqtt-user').value = mqttConfig.username || '';
+                document.getElementById('mqtt-pass').value = mqttConfig.password || '';
+            }
+            
+            // Cihazları yükle
+            loadDevices();
+            
+            // Tüm cihazları periyodik olarak kontrol et (her 30 saniyede bir)
+            setInterval(() => {
+                const devices = JSON.parse(localStorage.getItem('esp01_devices') || '[]');
+                devices.forEach(device => {
+                    // Her cihaz için basit bir ping yapılabilir
+                    // Bu örnekte sadece görsel güncelleme yapıyoruz
+                });
+            }, 30000);
+        });
+    </script>
 </body>
 </html>
