@@ -2,186 +2,132 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>ESP01 MAC Bazlı MQTT Kontrol</title>
+<title>ESP01 MAC Kontrol Paneli</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <style>
-    body { font-family: 'Segoe UI', Arial; background:#0f0f0f; color:#eee; margin:0; }
-    header { background:#222; padding:16px; text-align:center; font-size:22px; color:#00e5ff; font-weight:bold; border-bottom: 2px solid #00e5ff; }
-    .container { padding:10px; max-width: 1200px; margin: auto; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; padding:10px; }
-    .card { background:#1b1b1b; border-radius:14px; padding:16px; border:1px solid #333; box-shadow:0 4px 15px #000; position: relative; }
-    .card h3 { margin:0 0 8px 0; font-size:18px; color:#00e5ff; }
-    .card h4 { margin:5px 0; font-size:13px; color:#aaa; }
-    .btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:16px; cursor:pointer; font-weight:bold; margin:10px 0; transition: 0.3s; }
+    body { font-family: sans-serif; background:#0f0f0f; color:#eee; margin:0; padding: 20px; }
+    header { background:#222; padding:15px; text-align:center; color:#00e5ff; font-weight:bold; border-radius: 10px; margin-bottom: 20px; }
+    .card { background:#1b1b1b; border:1px solid #333; padding:15px; border-radius:12px; margin-bottom: 10px; }
+    .btn { width:100%; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-top: 10px; }
     .on { background:#00e676; color:#000; }
-    .off { background:#333; color:#ccc; }
-    .groupBox { margin:12px 0; padding:10px; background:#111; border-radius:10px; border:1px solid #333; }
-    .groupBox h2 { margin:0 0 10px 0; font-size:18px; color:#ff9800; }
-    .addBox { background:#1b1b1b; padding:20px; border-radius:14px; margin:10px; border:1px solid #444; }
-    .addBox input { width:100%; padding:12px; margin:8px 0; border-radius:8px; border:1px solid #555; background:#222; color:#fff; box-sizing: border-box; }
-    .addBox button { width:100%; padding:12px; margin-top:10px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:16px; font-weight: bold; }
-    .all-buttons { display:flex; gap:12px; padding:12px; }
-    .all-buttons button { flex:1; padding:12px; border:none; border-radius:10px; font-size:14px; cursor:pointer; font-weight:bold; }
-    .topic-info { font-size:10px; color:#888; background:#000; padding:8px; border-radius:6px; margin:10px 0; font-family:monospace; line-height: 1.4; }
-    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; float: right; }
+    .off { background:#444; color:#ccc; }
+    .addBox { background:#1b1b1b; padding:20px; border-radius:12px; border:1px solid #00e5ff; margin-bottom: 20px; }
+    input { width:100%; padding:10px; margin:5px 0; border-radius:5px; border:1px solid #444; background:#222; color:#fff; box-sizing: border-box; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:15px; }
 </style>
 </head>
 <body>
 
-<header>ESP01 MERKEZİ KONTROL PANELİ</header>
+<header>ESP01 MERKEZİ KONTROL</header>
 
-<div class="container">
-    <div class="all-buttons">
-        <button onclick="turnAll(1)" style="background:#00e676;color:#000">TÜMÜNÜ AÇ</button>
-        <button onclick="turnAll(0)" style="background:#ff5252;color:#fff">TÜMÜNÜ KAPAT</button>
-    </div>
-
-    <div id="groupArea"></div>
-
-    <div class="addBox">
-        <h3 style="color:#00e5ff; margin-top:0;">✨ Yeni ESP01 Ekle</h3>
-        <input id="devName" placeholder="Cihaz Adı (Örn: Salon Lamba)">
-        <input id="devMAC" placeholder="MAC Adresi (Örn: AABBCCDDEEFF)">
-        <input id="devGroup" placeholder="Grup (Örn: Ev)">
-        <button onclick="addDevice()">LİSTEYE EKLE</button>
-        
-        <div style="margin-top:15px; padding:10px; background:#222; border-radius:8px; border-left: 4px solid #ff9800;">
-            <h4 style="margin:0 0 5px 0; color:#ff9800;">📌 Bilgi:</h4>
-            <div style="font-size:11px; color:#aaa;">
-                MAC adresi olarak cihazın seri portunda görünen 12 haneli kodu girin. 
-                Topic otomatik oluşacaktır: <code>esp01/[MAC]/set</code> 
-            </div>
-        </div>
-    </div>
-
-    <div id="deviceGrid" class="grid"></div>
+<div class="addBox">
+  <h3>Yeni Cihaz Ekle</h3>
+  <input id="devName" placeholder="Cihaz Adı (Örn: Mutfak)">
+  <input id="devMAC" placeholder="MAC Adresi (Örn: AABBCCDDEEFF)">
+  <input id="devGroup" placeholder="Grup (Örn: Alt Kat)">
+  <button onclick="addDevice()" style="width:100%; padding:12px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer;">EKLE</button>
 </div>
 
+<div class="grid" id="deviceGrid"></div>
+
 <script>
-// MQTT BAĞLANTI (HiveMQ WebSocket)
+// MQTT Bağlantısı
 const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-let devices = JSON.parse(localStorage.getItem("esp01_devices") || "[]");
+// Yerel depolamadan cihazları çek
+let devices = JSON.parse(localStorage.getItem("esp_devices") || "[]");
 
-function addDevice(){
-    let name = document.getElementById('devName').value.trim();
-    let mac = document.getElementById('devMAC').value.trim().toLowerCase();
-    let group = document.getElementById('devGroup').value.trim() || "Genel";
+// CİHAZ EKLEME FONKSİYONU
+function addDevice() {
+    const name = document.getElementById('devName').value.trim();
+    const macInput = document.getElementById('devMAC').value.trim();
+    const group = document.getElementById('devGroup').value.trim() || "Genel";
 
-    if(!name || !mac){ 
-        alert("Lütfen isim ve MAC adresini girin!"); 
-        return; 
+    if (!name || !macInput) {
+        alert("Lütfen isim ve MAC adresini girin!");
+        return;
     }
 
-    // ESP01 .ino kodundaki yapı ile tam uyumlu topicler 
-    let topicSet = `esp01/${mac}/set`;
-    let topicState = `esp01/${mac}/state`;
+    // MAC adresini temizle (İki noktaları sil ve küçült)
+    const mac = macInput.replace(/:/g, "").toLowerCase();
+    
+    // ESP01 .ino dosyasındaki yapıya uyumlu topicler 
+    const topicSet = "esp01/" + mac + "/set";
+    const topicState = "esp01/" + mac + "/state";
 
-    devices.push({ name, mac, topicSet, topicState, group, status: "unknown" });
-    localStorage.setItem("esp01_devices", JSON.stringify(devices));
+    devices.push({ name, mac, topicSet, topicState, group, status: "0" });
+    localStorage.setItem("esp_devices", JSON.stringify(devices));
 
+    // Formu temizle
     document.getElementById('devName').value = "";
     document.getElementById('devMAC').value = "";
-    
+
     client.subscribe(topicState);
     buildUI();
 }
 
-function buildUI(){
+// ARAYÜZÜ ÇİZ
+function buildUI() {
     const grid = document.getElementById("deviceGrid");
-    const groupArea = document.getElementById("groupArea");
     grid.innerHTML = "";
-    groupArea.innerHTML = "";
-
-    const groups = {};
-    devices.forEach(d => {
-        if(!groups[d.group]) groups[d.group] = [];
-        groups[d.group].push(d);
-    });
-
-    for(const g in groups){
-        const box = document.createElement("div");
-        box.className = "groupBox";
-        box.innerHTML = `<h2>📁 ${g} (${groups[g].length})</h2>`;
-        const groupButtons = document.createElement("div");
-        groupButtons.className = "all-buttons";
-        groupButtons.innerHTML = `
-            <button onclick="turnGroup('${g}', 1)" style="background:#00e676;color:#000">Grubu AÇ</button>
-            <button onclick="turnGroup('${g}', 0)" style="background:#ff5252;color:#fff">Grubu KAPAT</button>
-        `;
-        box.appendChild(groupButtons);
-        groupArea.appendChild(box);
-    }
 
     devices.forEach((d, index) => {
         const card = document.createElement("div");
         card.className = "card";
         card.innerHTML = `
-          <span class="status-badge" style="background:${d.status === "1" ? "#00e67633" : "#ff525233"}; color:${d.status === "1" ? "#00e676" : "#ff5252"}">
-            ● ${d.status === "1" ? "AKTİF" : "KAPALI"}
-          </span>
-          <h3>${d.name}</h3>
-          <h4>🆔 MAC: ${d.mac.toUpperCase()}</h4>
-          
-          <div class="topic-info">
-            <b>SET:</b> ${d.topicSet}<br>
-            <b>STATE:</b> ${d.topicState}
-          </div>
-          
-          <button id="btn${index}" class="btn ${d.status === "1" ? 'on' : 'off'}" onclick="toggle(${index})">
-            ${d.status === "1" ? "KAPAT" : "AÇ"}
-          </button>
-          
-          <div style="display:flex; gap:10px;">
-            <button onclick="deleteDevice(${index})" style="flex:1; padding:8px; background:#444; color:#ff5252; border:none; border-radius:8px; font-size:12px; cursor:pointer;">Sil</button>
-          </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span style="color:#aaa; font-size:12px;">${d.group}</span>
+                <span style="color:${d.status === "1" ? "#00e676" : "#ff5252"}">● ${d.status === "1" ? "AÇIK" : "KAPALI"}</span>
+            </div>
+            <h3 style="margin:10px 0;">${d.name}</h3>
+            <div style="font-size:10px; color:#666; font-family:monospace;">${d.topicSet}</div>
+            <button class="btn ${d.status === "1" ? 'on' : 'off'}" onclick="toggle(${index})">
+                ${d.status === "1" ? "KAPAT" : "AÇ"}
+            </button>
+            <button onclick="deleteDevice(${index})" style="background:none; border:none; color:#ff5252; cursor:pointer; margin-top:10px; font-size:12px;">Cihazı Sil</button>
         `;
         grid.appendChild(card);
     });
 }
 
-client.on("connect", () => {
-    console.log("Bağlantı Başarılı");
-    devices.forEach(d => client.subscribe(d.topicState));
-});
+// DURUM DEĞİŞTİR
+function toggle(index) {
+    const d = devices[index];
+    const newState = d.status === "1" ? "0" : "1";
+    // MQTT'ye gönder [cite: 40, 41, 42]
+    client.publish(d.topicSet, newState, { retain: true });
+}
 
+// CİHAZ SİL
+function deleteDevice(index) {
+    if (confirm("Bu cihazı silmek istediğinize emin misiniz?")) {
+        client.unsubscribe(devices[index].topicState);
+        devices.splice(index, 1);
+        localStorage.setItem("esp_devices", JSON.stringify(devices));
+        buildUI();
+    }
+}
+
+// MQTT MESAJLARINI DİNLE
 client.on("message", (topic, msg) => {
     const val = msg.toString().trim();
-    devices.forEach((d, index) => {
-        if(topic === d.topicState){
+    devices.forEach(d => {
+        if (topic === d.topicState) {
             d.status = val;
             buildUI();
         }
     });
 });
 
-function toggle(index){
-    const d = devices[index];
-    const newState = d.status === "1" ? "0" : "1";
-    client.publish(d.topicSet, newState, { retain:true }); [cite: 40, 41, 42]
-}
+client.on("connect", () => {
+    console.log("MQTT Bağlandı!");
+    devices.forEach(d => client.subscribe(d.topicState));
+});
 
-function turnAll(state){
-    devices.forEach(d => client.publish(d.topicSet, String(state), { retain:true }));
-}
-
-function turnGroup(groupName, state){
-    devices.forEach(d => {
-        if(d.group === groupName) client.publish(d.topicSet, String(state), { retain:true });
-    });
-}
-
-function deleteDevice(index){
-    if(confirm("Silinsin mi?")){
-        client.unsubscribe(devices[index].topicState);
-        devices.splice(index, 1);
-        localStorage.setItem("esp01_devices", JSON.stringify(devices));
-        buildUI();
-    }
-}
-
+// Sayfa açıldığında arayüzü oluştur
 buildUI();
+
 </script>
 </body>
 </html>
