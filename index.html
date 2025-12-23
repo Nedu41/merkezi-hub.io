@@ -2,103 +2,144 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MQTT Röle Kontrol Paneli</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MQTT HUB</title>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
-body{background:#121212;color:#eee;font-family:Segoe UI;margin:0}
-.header{background:#1f1f1f;padding:12px;text-align:center;font-weight:bold;color:#03dac6}
+body{margin:0;background:#121212;color:#eee;font-family:Segoe UI}
+.header{background:#1e1e1e;padding:12px;text-align:center;color:#03dac6;font-weight:bold}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;padding:10px}
-.card{background:#1e1e1e;border-radius:10px;padding:12px;border:1px solid #333}
+.card{background:#1f1f1f;border-radius:10px;padding:12px;border:1px solid #333}
 .title{display:flex;justify-content:space-between;align-items:center}
 .dot{width:10px;height:10px;border-radius:50%}
 .on{background:#4CAF50}
 .off{background:#cf6679}
-button{width:100%;padding:10px;margin-top:8px;font-size:14px;border:none;border-radius:6px}
+button{width:100%;padding:10px;margin-top:6px;border:none;border-radius:6px;font-size:14px}
 .btn-on{background:#03dac6;color:#000}
 .btn-off{background:#333;color:#fff}
-input{width:100%;padding:6px;background:#111;color:#fff;border:1px solid #333;border-radius:4px}
+.btn-warn{background:#ff9800;color:#000}
+input,select{width:100%;padding:6px;background:#111;color:#fff;border:1px solid #333;border-radius:4px;margin-top:5px}
+.log{background:#111;padding:8px;border-radius:6px;height:120px;overflow:auto;font-size:12px}
+.small{font-size:12px;color:#888}
 </style>
 </head>
 
 <body>
 
-<div class="header">🌐 MQTT Röle Kontrol</div>
+<div class="header">🌐 MQTT MERKEZİ HUB</div>
 
-<div style="padding:10px">
+<div class="card">
+<b>MQTT Ayarları</b>
 <input id="broker" value="wss://broker.hivemq.com:8884/mqtt">
-<input id="mac" placeholder="ESP01 MAC (ör: a1b2c3d4e5f6)">
-<button onclick="connect()">🔌 MQTT Bağlan</button>
+<input id="user" placeholder="Kullanıcı (opsiyonel)">
+<input id="pass" type="password" placeholder="Şifre (opsiyonel)">
+<button class="btn-on" onclick="connect()">🔌 Bağlan</button>
 </div>
 
-<div class="grid" id="cards"></div>
+<div class="card">
+<b>Cihaz Ekle</b>
+<input id="dname" placeholder="Cihaz Adı">
+<input id="dmac" placeholder="MAC (a1b2c3...)">
+<button onclick="addDevice()">➕ Ekle</button>
+</div>
+
+<div class="grid" id="devices"></div>
+
+<div class="card">
+<b>📜 Loglar</b>
+<div id="log" class="log"></div>
+</div>
 
 <script>
 let client;
-let mac="";
-let states={1:"0",2:"0"};
+let devices = JSON.parse(localStorage.getItem("devices")||"[]");
+let states = {};
+let lastSeen = {};
+
+function log(t){
+ const l=document.getElementById("log");
+ l.innerHTML+=`<div>${new Date().toLocaleTimeString()} ${t}</div>`;
+ l.scrollTop=l.scrollHeight;
+}
+
+function save(){ localStorage.setItem("devices",JSON.stringify(devices)); }
 
 function connect(){
- mac=document.getElementById("mac").value.trim();
- if(!mac){alert("MAC gir");return;}
-
- client=mqtt.connect(document.getElementById("broker").value);
+ client=mqtt.connect(document.getElementById("broker").value,{
+   username:document.getElementById("user").value,
+   password:document.getElementById("pass").value,
+   reconnectPeriod:3000
+ });
 
  client.on("connect",()=>{
-   subscribe(1);
-   subscribe(2);
-   render();
+   log("MQTT bağlı");
+   devices.forEach(d=>{
+     client.subscribe(`esp01/${d.mac}/+/state`);
+     client.subscribe(`esp01/${d.mac}/status`);
+   });
  });
 
  client.on("message",(t,p)=>{
-   const r=t.includes("/r1/")?1:2;
-   states[r]=p.toString();
-   update(r);
+   const msg=p.toString();
+   const parts=t.split("/");
+   const mac=parts[1];
+   lastSeen[mac]=Date.now();
+
+   if(t.endsWith("/status")) return;
+   const r=t.includes("r1")?1:2;
+   states[mac]=states[mac]||{};
+   states[mac][r]=msg;
+   render();
  });
 }
 
-function topic(r,type){
- return `esp01/${mac}/r${r}/${type}`;
+function addDevice(){
+ const n=dname.value.trim(), m=dmac.value.trim();
+ if(!n||!m) return;
+ devices.push({name:n,mac:m});
+ save();
+ if(client){
+   client.subscribe(`esp01/${m}/+/state`);
+   client.subscribe(`esp01/${m}/status`);
+ }
+ render();
 }
 
-function subscribe(r){
- client.subscribe(topic(r,"state"));
+function toggle(mac,r){
+ const val = states[mac]?.[r]==="1"?"0":"1";
+ client.publish(`esp01/${mac}/r${r}/set`,val,{retain:true});
+ log(`${mac} R${r} → ${val}`);
 }
 
-function publish(r,val){
- client.publish(topic(r,"set"),val,{retain:true});
+function online(mac){
+ return lastSeen[mac] && Date.now()-lastSeen[mac]<15000;
 }
 
 function render(){
- document.getElementById("cards").innerHTML=`
- <div class="card">
-   <div class="title">
-     <b>Röle 1</b><div id="d1" class="dot off"></div>
-   </div>
-   <button id="b1" class="btn-off" onclick="toggle(1)">...</button>
- </div>
-
- <div class="card">
-   <div class="title">
-     <b>Röle 2</b><div id="d2" class="dot off"></div>
-   </div>
-   <button id="b2" class="btn-off" onclick="toggle(2)">...</button>
- </div>`;
+ const c=document.getElementById("devices");
+ c.innerHTML="";
+ devices.forEach(d=>{
+   const s=states[d.mac]||{};
+   c.innerHTML+=`
+   <div class="card">
+     <div class="title">
+       <b>${d.name}</b>
+       <div class="dot ${online(d.mac)?"on":"off"}"></div>
+     </div>
+     <button class="${s[1]==="1"?"btn-on":"btn-off"}" onclick="toggle('${d.mac}',1)">
+       Röle 1 ${s[1]==="1"?"AÇIK":"KAPALI"}
+     </button>
+     <button class="${s[2]==="1"?"btn-on":"btn-off"}" onclick="toggle('${d.mac}',2)">
+       Röle 2 ${s[2]==="1"?"AÇIK":"KAPALI"}
+     </button>
+     <div class="small">${d.mac}</div>
+   </div>`;
+ });
 }
 
-function toggle(r){
- publish(r, states[r]==="1"?"0":"1");
-}
-
-function update(r){
- const on=states[r]==="1";
- document.getElementById("b"+r).textContent=on?"✅ AÇIK":"⭕ KAPALI";
- document.getElementById("b"+r).className=on?"btn-on":"btn-off";
- document.getElementById("d"+r).className="dot "+(on?"on":"off");
-}
+render();
 </script>
-
 </body>
 </html>
