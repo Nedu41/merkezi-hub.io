@@ -1,133 +1,73 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>ESP01 MAC Kontrol Paneli</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-<style>
-    body { font-family: sans-serif; background:#0f0f0f; color:#eee; margin:0; padding: 20px; }
-    header { background:#222; padding:15px; text-align:center; color:#00e5ff; font-weight:bold; border-radius: 10px; margin-bottom: 20px; }
-    .card { background:#1b1b1b; border:1px solid #333; padding:15px; border-radius:12px; margin-bottom: 10px; }
-    .btn { width:100%; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-top: 10px; }
-    .on { background:#00e676; color:#000; }
-    .off { background:#444; color:#ccc; }
-    .addBox { background:#1b1b1b; padding:20px; border-radius:12px; border:1px solid #00e5ff; margin-bottom: 20px; }
-    input { width:100%; padding:10px; margin:5px 0; border-radius:5px; border:1px solid #444; background:#222; color:#fff; box-sizing: border-box; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:15px; }
-</style>
+    <meta charset="UTF-8">
+    <title>ESP01 Debug Kontrol</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
+        .log-box { background: black; color: #00ff00; padding: 10px; height: 150px; overflow-y: scroll; font-family: monospace; font-size: 12px; border: 1px solid #333; }
+        .device-card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #2196f3; }
+        button { padding: 10px; cursor: pointer; font-weight: bold; }
+    </style>
 </head>
 <body>
 
-<header>ESP01 MERKEZİ KONTROL</header>
-
-<div class="addBox">
-  <h3>Yeni Cihaz Ekle</h3>
-  <input id="devName" placeholder="Cihaz Adı (Örn: Mutfak)">
-  <input id="devMAC" placeholder="MAC Adresi (Örn: AABBCCDDEEFF)">
-  <input id="devGroup" placeholder="Grup (Örn: Alt Kat)">
-  <button onclick="addDevice()" style="width:100%; padding:12px; background:#2196f3; color:#fff; border:none; border-radius:8px; cursor:pointer;">EKLE</button>
-</div>
-
-<div class="grid" id="deviceGrid"></div>
-
-<script>
-// MQTT Bağlantısı
-const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
-
-// Yerel depolamadan cihazları çek
-let devices = JSON.parse(localStorage.getItem("esp_devices") || "[]");
-
-// CİHAZ EKLEME FONKSİYONU
-function addDevice() {
-    const name = document.getElementById('devName').value.trim();
-    const macInput = document.getElementById('devMAC').value.trim();
-    const group = document.getElementById('devGroup').value.trim() || "Genel";
-
-    if (!name || !macInput) {
-        alert("Lütfen isim ve MAC adresini girin!");
-        return;
-    }
-
-    // MAC adresini temizle (İki noktaları sil ve küçült)
-    const mac = macInput.replace(/:/g, "").toLowerCase();
+    <h2>ESP01 Kontrol Test Paneli</h2>
     
-    // ESP01 .ino dosyasındaki yapıya uyumlu topicler 
-    const topicSet = "esp01/" + mac + "/set";
-    const topicState = "esp01/" + mac + "/state";
+    <div id="status">MQTT Bağlantısı Bekleniyor...</div>
+    <div class="log-box" id="log">Sistem başlatıldı...<br></div>
 
-    devices.push({ name, mac, topicSet, topicState, group, status: "0" });
-    localStorage.setItem("esp_devices", JSON.stringify(devices));
+    <div class="device-card">
+        <h3>Cihaz Testi</h3>
+        <input type="text" id="macInput" placeholder="MAC (Örn: aabbcc112233)" style="padding:8px; width:200px;">
+        <button onclick="sendTest('1')" style="background: green; color: white;">AÇ (1 Gönder)</button>
+        <button onclick="sendTest('0')" style="background: red; color: white;">KAPAT (0 Gönder)</button>
+        <p style="font-size: 11px; color: #888;">Not: MAC adresini küçük harfle ve iki noktasız girin.</p>
+    </div>
 
-    // Formu temizle
-    document.getElementById('devName').value = "";
-    document.getElementById('devMAC').value = "";
+    <script>
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+        
+        // Broker Bağlantısı
+        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-    client.subscribe(topicState);
-    buildUI();
-}
-
-// ARAYÜZÜ ÇİZ
-function buildUI() {
-    const grid = document.getElementById("deviceGrid");
-    grid.innerHTML = "";
-
-    devices.forEach((d, index) => {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-            <div style="display:flex; justify-content:space-between;">
-                <span style="color:#aaa; font-size:12px;">${d.group}</span>
-                <span style="color:${d.status === "1" ? "#00e676" : "#ff5252"}">● ${d.status === "1" ? "AÇIK" : "KAPALI"}</span>
-            </div>
-            <h3 style="margin:10px 0;">${d.name}</h3>
-            <div style="font-size:10px; color:#666; font-family:monospace;">${d.topicSet}</div>
-            <button class="btn ${d.status === "1" ? 'on' : 'off'}" onclick="toggle(${index})">
-                ${d.status === "1" ? "KAPAT" : "AÇ"}
-            </button>
-            <button onclick="deleteDevice(${index})" style="background:none; border:none; color:#ff5252; cursor:pointer; margin-top:10px; font-size:12px;">Cihazı Sil</button>
-        `;
-        grid.appendChild(card);
-    });
-}
-
-// DURUM DEĞİŞTİR
-function toggle(index) {
-    const d = devices[index];
-    const newState = d.status === "1" ? "0" : "1";
-    // MQTT'ye gönder [cite: 40, 41, 42]
-    client.publish(d.topicSet, newState, { retain: true });
-}
-
-// CİHAZ SİL
-function deleteDevice(index) {
-    if (confirm("Bu cihazı silmek istediğinize emin misiniz?")) {
-        client.unsubscribe(devices[index].topicState);
-        devices.splice(index, 1);
-        localStorage.setItem("esp_devices", JSON.stringify(devices));
-        buildUI();
-    }
-}
-
-// MQTT MESAJLARINI DİNLE
-client.on("message", (topic, msg) => {
-    const val = msg.toString().trim();
-    devices.forEach(d => {
-        if (topic === d.topicState) {
-            d.status = val;
-            buildUI();
+        function addLog(msg) {
+            logEl.innerHTML += "> " + msg + "<br>";
+            logEl.scrollTop = logEl.scrollHeight;
         }
-    });
-});
 
-client.on("connect", () => {
-    console.log("MQTT Bağlandı!");
-    devices.forEach(d => client.subscribe(d.topicState));
-});
+        client.on("connect", () => {
+            statusEl.innerText = "BAĞLANDI: broker.hivemq.com";
+            statusEl.style.color = "#00ff00";
+            addLog("MQTT Broker'a bağlanıldı.");
+        });
 
-// Sayfa açıldığında arayüzü oluştur
-buildUI();
+        client.on("error", (err) => {
+            addLog("HATA: " + err);
+        });
 
-</script>
+        function sendTest(val) {
+            const mac = document.getElementById('macInput').value.trim().toLowerCase();
+            if(!mac) { alert("Önce MAC girin!"); return; }
+            
+            const topic = "esp01/" + mac + "/set";
+            addLog("Gönderiliyor: " + topic + " -> Değer: " + val);
+            
+            client.publish(topic, val, { qos: 0, retain: true }, (err) => {
+                if(err) addLog("Gönderim HATASI: " + err);
+                else addLog("Mesaj başarıyla iletildi.");
+            });
+        }
+
+        // ESP'den gelen yanıtları dinle
+        client.on("message", (topic, message) => {
+            addLog("GERİ BİLDİRİM GELDİ: " + topic + " = " + message.toString());
+        });
+        
+        // Tüm state kanallarını dinle
+        client.subscribe("esp01/+/state");
+    </script>
 </body>
 </html>
