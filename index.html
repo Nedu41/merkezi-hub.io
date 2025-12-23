@@ -2,139 +2,164 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MQTT HUB</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MQTT Cihaz Kontrol Hub</title>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
-body{margin:0;background:#121212;color:#eee;font-family:Segoe UI}
-.header{background:#1e1e1e;padding:12px;text-align:center;color:#03dac6;font-weight:bold}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;padding:10px}
-.card{background:#1f1f1f;border-radius:10px;padding:12px;border:1px solid #333}
-.title{display:flex;justify-content:space-between;align-items:center}
+body{margin:0;font-family:Segoe UI;background:#121212;color:#eee}
+header{background:#1e1e1e;padding:12px;text-align:center;color:#03dac6;font-weight:bold}
+.container{padding:10px;max-width:1100px;margin:auto}
+.box{background:#1f1f1f;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.device{background:#181818;border:1px solid #333;border-radius:8px;padding:10px}
+.dev-head{display:flex;justify-content:space-between;align-items:center}
 .dot{width:10px;height:10px;border-radius:50%}
 .on{background:#4CAF50}
 .off{background:#cf6679}
-button{width:100%;padding:10px;margin-top:6px;border:none;border-radius:6px;font-size:14px}
+.btn{width:100%;padding:8px;margin-top:6px;border:none;border-radius:5px;font-size:14px;cursor:pointer}
 .btn-on{background:#03dac6;color:#000}
-.btn-off{background:#333;color:#fff}
-.btn-warn{background:#ff9800;color:#000}
-input,select{width:100%;padding:6px;background:#111;color:#fff;border:1px solid #333;border-radius:4px;margin-top:5px}
-.log{background:#111;padding:8px;border-radius:6px;height:120px;overflow:auto;font-size:12px}
-.small{font-size:12px;color:#888}
+.btn-off{background:#333;color:#eee}
+.btn-del{background:#cf6679;color:#fff}
+input{width:100%;padding:6px;margin-top:5px;background:#111;color:#fff;border:1px solid #333;border-radius:4px}
+small{color:#888;font-size:12px}
 </style>
 </head>
 
 <body>
+<header>🔌 MQTT MERKEZİ KONTROL HUB</header>
 
-<div class="header">🌐 MQTT MERKEZİ HUB</div>
+<div class="container">
 
-<div class="card">
-<b>MQTT Ayarları</b>
+<div class="box">
+<h3>MQTT Bağlantı</h3>
 <input id="broker" value="wss://broker.hivemq.com:8884/mqtt">
 <input id="user" placeholder="Kullanıcı (opsiyonel)">
 <input id="pass" type="password" placeholder="Şifre (opsiyonel)">
-<button class="btn-on" onclick="connect()">🔌 Bağlan</button>
+<button class="btn btn-on" onclick="mqttConnect()">Bağlan</button>
 </div>
 
-<div class="card">
-<b>Cihaz Ekle</b>
-<input id="dname" placeholder="Cihaz Adı">
-<input id="dmac" placeholder="MAC (a1b2c3...)">
-<button onclick="addDevice()">➕ Ekle</button>
+<div class="box">
+<h3>Cihaz Ekle / Düzenle</h3>
+<input id="devName" placeholder="Cihaz Adı">
+<input id="devMac" placeholder="MAC ID (küçük harf, :) yok)">
+<input id="devIp" placeholder="IP Adresi (bilgi amaçlı)">
+<button class="btn btn-on" onclick="addOrUpdate()">Kaydet</button>
 </div>
 
-<div class="grid" id="devices"></div>
+<div class="grid" id="deviceList"></div>
 
-<div class="card">
-<b>📜 Loglar</b>
-<div id="log" class="log"></div>
 </div>
 
 <script>
 let client;
-let devices = JSON.parse(localStorage.getItem("devices")||"[]");
+let devices = JSON.parse(localStorage.getItem("devices") || "[]");
 let states = {};
 let lastSeen = {};
+let editIndex = -1;
 
-function log(t){
- const l=document.getElementById("log");
- l.innerHTML+=`<div>${new Date().toLocaleTimeString()} ${t}</div>`;
- l.scrollTop=l.scrollHeight;
-}
+function save(){ localStorage.setItem("devices", JSON.stringify(devices)); }
 
-function save(){ localStorage.setItem("devices",JSON.stringify(devices)); }
-
-function connect(){
- client=mqtt.connect(document.getElementById("broker").value,{
-   username:document.getElementById("user").value,
-   password:document.getElementById("pass").value,
+function mqttConnect(){
+ client = mqtt.connect(broker.value,{
+   username:user.value || undefined,
+   password:pass.value || undefined,
    reconnectPeriod:3000
  });
 
- client.on("connect",()=>{
-   log("MQTT bağlı");
+ client.on("connect", ()=>{
    devices.forEach(d=>{
-     client.subscribe(`esp01/${d.mac}/+/state`);
-     client.subscribe(`esp01/${d.mac}/status`);
+     client.subscribe(`esp01/${d.mac}/r1/state`);
+     client.subscribe(`esp01/${d.mac}/r2/state`);
    });
  });
 
- client.on("message",(t,p)=>{
-   const msg=p.toString();
-   const parts=t.split("/");
-   const mac=parts[1];
-   lastSeen[mac]=Date.now();
+ client.on("message",(topic,payload)=>{
+   const msg = payload.toString();
+   const parts = topic.split("/");
+   const mac = parts[1];
+   const relay = topic.includes("r1") ? 1 : 2;
 
-   if(t.endsWith("/status")) return;
-   const r=t.includes("r1")?1:2;
-   states[mac]=states[mac]||{};
-   states[mac][r]=msg;
+   states[mac] = states[mac] || {};
+   states[mac][relay] = msg;
+   lastSeen[mac] = Date.now();
    render();
  });
 }
 
-function addDevice(){
- const n=dname.value.trim(), m=dmac.value.trim();
- if(!n||!m) return;
- devices.push({name:n,mac:m});
- save();
- if(client){
-   client.subscribe(`esp01/${m}/+/state`);
-   client.subscribe(`esp01/${m}/status`);
+function addOrUpdate(){
+ const name = devName.value.trim();
+ const mac = devMac.value.trim();
+ const ip  = devIp.value.trim();
+ if(!name || !mac) return alert("Ad ve MAC zorunlu");
+
+ if(editIndex >= 0){
+   devices[editIndex] = {name, mac, ip};
+   editIndex = -1;
+ } else {
+   devices.push({name, mac, ip});
+   if(client){
+     client.subscribe(`esp01/${mac}/r1/state`);
+     client.subscribe(`esp01/${mac}/r2/state`);
+   }
  }
+ save();
+ clearForm();
  render();
 }
 
-function toggle(mac,r){
- const val = states[mac]?.[r]==="1"?"0":"1";
- client.publish(`esp01/${mac}/r${r}/set`,val,{retain:true});
- log(`${mac} R${r} → ${val}`);
+function clearForm(){
+ devName.value=""; devMac.value=""; devIp.value="";
 }
 
-function online(mac){
- return lastSeen[mac] && Date.now()-lastSeen[mac]<15000;
+function toggle(mac, relay){
+ const current = states[mac]?.[relay] === "1";
+ client.publish(`esp01/${mac}/r${relay}/set`, current ? "0" : "1", {retain:true});
+}
+
+function isOnline(mac){
+ return lastSeen[mac] && (Date.now() - lastSeen[mac] < 15000);
+}
+
+function editDevice(i){
+ const d = devices[i];
+ devName.value=d.name;
+ devMac.value=d.mac;
+ devIp.value=d.ip;
+ editIndex=i;
+}
+
+function deleteDevice(i){
+ if(confirm("Cihaz silinsin mi?")){
+   devices.splice(i,1);
+   save();
+   render();
+ }
 }
 
 function render(){
- const c=document.getElementById("devices");
- c.innerHTML="";
- devices.forEach(d=>{
-   const s=states[d.mac]||{};
-   c.innerHTML+=`
-   <div class="card">
-     <div class="title">
+ const list = document.getElementById("deviceList");
+ list.innerHTML="";
+ devices.forEach((d,i)=>{
+   const s = states[d.mac] || {};
+   list.innerHTML += `
+   <div class="device">
+     <div class="dev-head">
        <b>${d.name}</b>
-       <div class="dot ${online(d.mac)?"on":"off"}"></div>
+       <div class="dot ${isOnline(d.mac)?"on":"off"}"></div>
      </div>
-     <button class="${s[1]==="1"?"btn-on":"btn-off"}" onclick="toggle('${d.mac}',1)">
-       Röle 1 ${s[1]==="1"?"AÇIK":"KAPALI"}
-     </button>
-     <button class="${s[2]==="1"?"btn-on":"btn-off"}" onclick="toggle('${d.mac}',2)">
-       Röle 2 ${s[2]==="1"?"AÇIK":"KAPALI"}
-     </button>
-     <div class="small">${d.mac}</div>
+     <small>MAC: ${d.mac}</small><br>
+     <small>IP: ${d.ip || "-"}</small>
+
+     <button class="btn ${s[1]==="1"?"btn-on":"btn-off"}"
+       onclick="toggle('${d.mac}',1)">Röle 1 ${s[1]==="1"?"AÇIK":"KAPALI"}</button>
+
+     <button class="btn ${s[2]==="1"?"btn-on":"btn-off"}"
+       onclick="toggle('${d.mac}',2)">Röle 2 ${s[2]==="1"?"AÇIK":"KAPALI"}</button>
+
+     <button class="btn" onclick="editDevice(${i})">✏️ Düzenle</button>
+     <button class="btn btn-del" onclick="deleteDevice(${i})">🗑 Sil</button>
    </div>`;
  });
 }
