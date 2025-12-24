@@ -3,70 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP Kontrol v1.3</title>
+    <title>ESP Kontrol v1.4</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; }
-        
         .container { max-width: 500px; margin: 0 auto; padding: 15px; }
-        
-        .header { 
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 15px 0; margin-bottom: 15px; border-bottom: 1px solid #333;
-        }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 15px; border-bottom: 1px solid #333; }
         .header h1 { font-size: 20px; color: #4fc3f7; }
         .status { font-size: 12px; padding: 4px 10px; border-radius: 10px; }
         .status.connected { background: #2e7d32; color: #fff; }
         .status.disconnected { background: #c62828; color: #fff; }
-        
         .tabs { display: flex; background: #1e1e1e; border-radius: 10px; margin-bottom: 15px; overflow: hidden; }
         .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 14px; }
         .tab.active { background: #4fc3f7; color: #000; font-weight: 600; }
-        
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        
-        .device-card { 
-            background: #1e1e1e; border-radius: 10px; padding: 15px; margin-bottom: 15px;
-            border-left: 4px solid #4fc3f7;
-        }
+        .device-card { background: #1e1e1e; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4fc3f7; }
         .device-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
         .device-name { font-size: 16px; font-weight: 600; }
         .device-meta { font-size: 11px; color: #888; }
-        
-        .relay-item { 
-            display: flex; justify-content: space-between; align-items: center;
-            background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 10px;
-        }
-        .relay-info { flex: 1; }
+        .relay-item { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
         .relay-status { font-size: 12px; }
         .relay-status.on { color: #4caf50; }
         .relay-status.off { color: #f44336; }
-        
-        .ctrl-btn {
-            padding: 8px 18px; border: none; border-radius: 6px;
-            font-weight: 600; cursor: pointer; min-width: 80px; transition: all 0.3s;
-        }
+        .ctrl-btn { padding: 8px 18px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; min-width: 80px; transition: all 0.3s; font-size: 13px; }
         .ctrl-btn.btn-off { background: #2e7d32; color: white; }
         .ctrl-btn.btn-on { background: #c62828; color: white; }
-        
         .device-actions { display: flex; gap: 8px; margin-top: 15px; }
         .action-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
         .btn-edit { background: #ff9800; color: #000; }
         .btn-delete { background: #f44336; color: #fff; }
-        
         .form-group { margin-bottom: 15px; }
         .form-label { display: block; margin-bottom: 5px; font-size: 14px; color: #aaa; }
         .form-input { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; border-radius: 8px; color: #fff; }
         .form-submit { width: 100%; padding: 14px; background: #4fc3f7; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
-        
         .log-box { background: #1e1e1e; border-radius: 10px; padding: 15px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; }
         .alert { padding: 12px; border-radius: 8px; margin-bottom: 15px; display: none; text-align: center; }
         .alert.show { display: block; }
         .alert.success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; }
         .alert.error { background: rgba(244, 67, 54, 0.2); border: 1px solid #f44336; }
-
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
         .modal-content { background: #1e1e1e; border-radius: 15px; padding: 20px; width: 100%; max-width: 400px; }
     </style>
@@ -77,26 +53,21 @@
             <h1>ESP Kontrol</h1>
             <div id="mqttStatus" class="status disconnected">Bağlantı Yok</div>
         </div>
-        
         <div id="alert" class="alert"></div>
-        
         <div class="tabs">
             <div class="tab active" onclick="showTab('devices')">📱 Cihazlar</div>
             <div class="tab" onclick="showTab('add')">➕ Ekle</div>
             <div class="tab" onclick="showTab('logs')">📋 Loglar</div>
         </div>
-        
         <div id="devices" class="tab-content active"><div id="deviceList"></div></div>
-        
         <div id="add" class="tab-content">
             <form id="addForm" onsubmit="return addDevice()">
-                <div class="form-group"><label class="form-label">Cihaz Adı</label><input type="text" class="form-input" id="name" required placeholder="Salon Lambası"></div>
+                <div class="form-group"><label class="form-label">Cihaz Adı</label><input type="text" class="form-input" id="name" required placeholder="Örn: Mutfak"></div>
                 <div class="form-group"><label class="form-label">MAC Adresi</label><input type="text" class="form-input" id="mac" required placeholder="aabbcc112233"></div>
                 <div class="form-group"><label class="form-label">IP Adresi (opsiyonel)</label><input type="text" class="form-input" id="ip" placeholder="192.168.1.100"></div>
                 <button type="submit" class="form-submit">Kaydet</button>
             </form>
         </div>
-        
         <div id="logs" class="tab-content">
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <button onclick="copyDeviceList()" class="action-btn" style="background: #2e7d32; color: white;">📋 Listeyi Kopyala</button>
@@ -105,7 +76,7 @@
             <div class="log-box" id="log"></div>
         </div>
     </div>
-    
+
     <div id="editModal" class="modal">
         <div class="modal-content">
             <div style="margin-bottom:15px; font-size:18px; color:#4fc3f7;">Cihaz Düzenle</div>
@@ -123,9 +94,8 @@
     <script>
         let mqttClient = null;
         let devices = [];
-        
         window.onload = () => { loadDevices(); connectMQTT(); };
-        
+
         function connectMQTT() {
             mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
             mqttClient.on('connect', () => {
@@ -154,7 +124,7 @@
         function renderDevices() {
             const container = document.getElementById('deviceList');
             if (devices.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">Cihaz yok.</div>';
+                container.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">Henüz cihaz yok.</div>';
                 return;
             }
             container.innerHTML = devices.map(device => `
@@ -186,6 +156,7 @@
             const d = devices.find(x => x.id === id);
             const newState = d.relays[relay] === 'on' ? '0' : '1';
             mqttClient.publish(`esp01/${d.mac}/${relay}/set`, newState);
+            // Durumun anında değişmesi yerine MQTT'den teyit beklenmesi daha güvenlidir ancak hızı korumak için:
             d.relays[relay] = newState === '1' ? 'on' : 'off';
             renderDevices();
         }
@@ -216,32 +187,51 @@
             const device = { id: 'dev_'+Date.now(), name, mac, ip, relays: {r1:'off', r2:'off'} };
             devices.push(device);
             saveDevices(); subscribeDevice(device); renderDevices(); showTab('devices');
+            document.getElementById('addForm').reset();
             return false;
         }
 
+        // --- Geliştirilmiş Kopyala/Yapıştır ---
         function copyDeviceList() {
-            const data = JSON.stringify(devices);
-            navigator.clipboard.writeText(data).then(() => showAlert('Kopyalandı!', 'success'));
+            // Sadece Ad, MAC ve IP bilgilerini al, röle durumlarını temizle
+            const cleanList = devices.map(d => ({
+                name: d.name,
+                mac: d.mac,
+                ip: d.ip,
+                id: d.id,
+                relays: {r1: 'off', r2: 'off'} // Durumlar sıfır olarak kopyalanır
+            }));
+            const data = JSON.stringify(cleanList);
+            navigator.clipboard.writeText(data).then(() => showAlert('Cihaz bilgileri kopyalandı!', 'success'));
         }
 
         function importDeviceList() {
-            const code = prompt("Liste kodunu yapıştırın:");
+            const code = prompt("Kopyaladığınız liste kodunu buraya yapıştırın:");
             if (code) {
                 try {
-                    devices = JSON.parse(code);
-                    saveDevices(); renderDevices(); devices.forEach(subscribeDevice);
-                    showAlert('Yüklendi!', 'success');
-                } catch(e) { showAlert('Hata!', 'error'); }
+                    const parsed = JSON.parse(code);
+                    devices = parsed;
+                    saveDevices(); 
+                    renderDevices(); 
+                    devices.forEach(subscribeDevice);
+                    showAlert('Liste içe aktarıldı!', 'success');
+                } catch(e) { showAlert('Hatalı kod yapısı!', 'error'); }
             }
         }
 
         function saveDevices() { localStorage.setItem('esp01_devices', JSON.stringify(devices)); }
         function loadDevices() { const d = localStorage.getItem('esp01_devices'); if(d) devices = JSON.parse(d); }
-        function showTab(t) { document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active')); document.getElementById(t).classList.add('active'); event.target.classList.add('active'); }
+        function showTab(t) { 
+            document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active')); 
+            document.getElementById(t).classList.add('active');
+            if (event) {
+                const tabs = document.querySelectorAll('.tab');
+                tabs.forEach(tab => { if(tab.innerText.includes(t==='devices'?'Cihazlar':t==='add'?'Ekle':'Loglar')) tab.classList.add('active'); });
+            }
+        }
         function closeModal() { document.getElementById('editModal').style.display = 'none'; }
         function deleteDevice(id) { if(confirm('Silinsin mi?')) { devices = devices.filter(x => x.id !== id); saveDevices(); renderDevices(); } }
         function showAlert(m, t) { const a = document.getElementById('alert'); a.textContent = m; a.className = `alert ${t} show`; setTimeout(() => a.className = 'alert', 3000); }
-        function log(m) { const l = document.getElementById('log'); l.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${m}</div>` + l.innerHTML; }
     </script>
 </body>
 </html>
