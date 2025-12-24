@@ -410,7 +410,7 @@
             const newState = currentState === 'on' ? '0' : '1';
             
             const topic = `esp01/${device.mac}/${relay}/set`;
-            mqttClient.publish(topic, newState, { qos: 0, retain: true });
+            mqttClient.publish(topic, newState, { qos: 0, retain: false });
             
             log(`${device.name} - ${relay}: ${currentState === 'on' ? 'Kapandı' : 'Açıldı'}`);
             
