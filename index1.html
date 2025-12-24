@@ -2,139 +2,192 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>ESP01 Debug Kontrol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP Kontrol v1.3</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
-        .log-box { background: black; color: #00ff00; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; font-size: 12px; border: 1px solid #333; }
-        .device-card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 5px solid #2196f3; }
-        .relay-card { background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 5px; }
-        button { padding: 10px; cursor: pointer; font-weight: bold; margin: 5px; }
-        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 3px; font-size: 12px; }
-        .status-on { background: green; }
-        .status-off { background: red; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; }
+        .container { max-width: 500px; margin: 0 auto; padding: 15px; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 15px; border-bottom: 1px solid #333; }
+        .header h1 { font-size: 20px; color: #4fc3f7; }
+        .status { font-size: 12px; padding: 4px 10px; border-radius: 10px; }
+        .status.connected { background: #2e7d32; color: #fff; }
+        .status.disconnected { background: #c62828; color: #fff; }
+        .tabs { display: flex; background: #1e1e1e; border-radius: 10px; margin-bottom: 15px; overflow: hidden; }
+        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; font-size: 14px; }
+        .tab.active { background: #4fc3f7; color: #000; font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .device-card { background: #1e1e1e; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4fc3f7; }
+        .device-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .device-name { font-size: 16px; font-weight: 600; }
+        .device-meta { font-size: 11px; color: #888; }
+        .relay-item { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+        .relay-status.on { color: #4caf50; }
+        .relay-status.off { color: #f44336; }
+        .ctrl-btn { padding: 8px 18px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; min-width: 80px; transition: all 0.3s; font-size: 13px; }
+        .ctrl-btn.btn-off { background: #2e7d32; color: white; }
+        .ctrl-btn.btn-on { background: #c62828; color: white; }
+        .device-actions { display: flex; gap: 8px; margin-top: 15px; }
+        .action-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .btn-edit { background: #ff9800; color: #000; }
+        .btn-delete { background: #f44336; color: #fff; }
+        .form-group { margin-bottom: 15px; }
+        .form-input { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; border-radius: 8px; color: #fff; }
+        .form-submit { width: 100%; padding: 14px; background: #4fc3f7; color: #000; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .log-box { background: #1e1e1e; border-radius: 10px; padding: 15px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        .alert.show { display: block; }
+        .alert.success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; }
+        .alert.error { background: rgba(244, 67, 54, 0.2); border: 1px solid #f44336; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-content { background: #1e1e1e; border-radius: 15px; padding: 20px; width: 100%; max-width: 400px; }
     </style>
 </head>
 <body>
-    <h2>ESP01 Kontrol Test Paneli</h2>
-    
-    <div id="status">MQTT Bağlantısı Bekleniyor...</div>
-    <div class="log-box" id="log">Sistem başlatıldı...<br></div>
-    
-    <div class="device-card">
-        <h3>Cihaz Ayarları</h3>
-        <input type="text" id="macInput" placeholder="MAC (Örn: aabbcc112233)" style="padding:8px; width:250px;">
-        <button onclick="connectDevice()" style="background: #2196f3; color: white;">Bağlan</button>
-        <p style="font-size: 11px; color: #888;">Not: MAC adresini küçük harfle ve iki noktasız girin.</p>
-    </div>
-    
-    <div class="device-card" id="controlPanel" style="display:none;">
-        <h3>Röle Kontrolü</h3>
-        
-        <div class="relay-card">
-            <h4>Röle 1 <span class="status-badge status-off" id="r1status">Bilinmiyor</span></h4>
-            <button onclick="sendCommand('r1', '1')" style="background: green; color: white;">AÇ</button>
-            <button onclick="sendCommand('r1', '0')" style="background: red; color: white;">KAPAT</button>
+    <div class="container">
+        <div class="header">
+            <h1>ESP Kontrol</h1>
+            <div id="mqttStatus" class="status disconnected">Bağlantı Yok</div>
         </div>
-        
-        <div class="relay-card">
-            <h4>Röle 2 <span class="status-badge status-off" id="r2status">Bilinmiyor</span></h4>
-            <button onclick="sendCommand('r2', '1')" style="background: green; color: white;">AÇ</button>
-            <button onclick="sendCommand('r2', '0')" style="background: red; color: white;">KAPAT</button>
+        <div id="alert" class="alert"></div>
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('devices')">📱 Cihazlar</div>
+            <div class="tab" onclick="showTab('add')">➕ Ekle</div>
+            <div class="tab" onclick="showTab('logs')">📋 Loglar</div>
+        </div>
+
+        <div id="devices" class="tab-content active"><div id="deviceList"></div></div>
+
+        <div id="add" class="tab-content">
+            <form onsubmit="return addDevice()">
+                <div class="form-group"><input type="text" class="form-input" id="name" required placeholder="Cihaz Adı"></div>
+                <div class="form-group"><input type="text" class="form-input" id="mac" required placeholder="MAC (aabbcc112233)"></div>
+                <div class="form-group"><input type="text" class="form-input" id="ip" placeholder="IP (Opsiyonel)"></div>
+                <button type="submit" class="form-submit">Kaydet</button>
+            </form>
+        </div>
+
+        <div id="logs" class="tab-content">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button onclick="copyDeviceList()" class="action-btn" style="background: #2e7d32; color: white;">📋 Listeyi Kopyala</button>
+                <button onclick="importDeviceList()" class="action-btn" style="background: #1976d2; color: white;">📥 Listeyi Yapıştır</button>
+            </div>
+            <div class="log-box" id="log"></div>
         </div>
     </div>
-    
+
     <script>
-        const logEl = document.getElementById('log');
-        const statusEl = document.getElementById('status');
-        let currentMac = "";
-        let subscribedTopics = [];
-        
-        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
-        
-        function addLog(msg) {
-            const time = new Date().toLocaleTimeString();
-            logEl.innerHTML += `[${time}] ${msg}<br>`;
-            logEl.scrollTop = logEl.scrollHeight;
-        }
-        
-        client.on("connect", () => {
-            statusEl.innerText = "BAĞLANDI: broker.hivemq.com";
-            statusEl.style.color = "#00ff00";
-            addLog("✓ MQTT Broker'a bağlanıldı.");
-        });
-        
-        client.on("error", (err) => {
-            addLog("✗ HATA: " + err);
-            statusEl.style.color = "#ff0000";
-        });
-        
-        client.on("message", (topic, message) => {
-            const msg = message.toString();
-            addLog(`📨 GERİ BİLDİRİM: ${topic} = ${msg}`);
-            
-            // Durum güncelleme
-            if(topic.includes("/r1/state")) {
-                updateStatus('r1', msg);
-            } else if(topic.includes("/r2/state")) {
-                updateStatus('r2', msg);
-            }
-        });
-        
-        function connectDevice() {
-            const mac = document.getElementById('macInput').value.trim().toLowerCase();
-            if(!mac) { 
-                alert("Lütfen MAC adresini girin!"); 
-                return; 
-            }
-            
-            currentMac = mac;
-            
-            // Eski abonelikleri iptal et
-            subscribedTopics.forEach(topic => client.unsubscribe(topic));
-            subscribedTopics = [];
-            
-            // Yeni abonelikler
-            const topics = [
-                `esp01/${mac}/r1/state`,
-                `esp01/${mac}/r2/state`
-            ];
-            
-            topics.forEach(topic => {
-                client.subscribe(topic);
-                subscribedTopics.push(topic);
-                addLog(`🔔 Abone olundu: ${topic}`);
+        let mqttClient = null;
+        let devices = [];
+
+        window.onload = () => { loadDevices(); connectMQTT(); };
+
+        function connectMQTT() {
+            mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+            mqttClient.on('connect', () => {
+                document.getElementById('mqttStatus').textContent = 'Bağlandı';
+                document.getElementById('mqttStatus').className = 'status connected';
+                devices.forEach(subscribeDevice);
             });
-            
-            document.getElementById('controlPanel').style.display = 'block';
-            addLog(`✓ Cihaz bağlandı: ${mac}`);
-        }
-        
-        function sendCommand(relay, value) {
-            if(!currentMac) { 
-                alert("Önce cihaza bağlanın!"); 
-                return; 
-            }
-            
-            const topic = `esp01/${currentMac}/${relay}/set`;
-            addLog(`📤 Gönderiliyor: ${topic} = ${value}`);
-            
-            client.publish(topic, value, { qos: 0, retain: true }, (err) => {
-                if(err) addLog(`✗ Gönderim HATASI: ${err}`);
-                else addLog(`✓ Komut gönderildi.`);
+            mqttClient.on('message', (topic, message) => {
+                const msg = message.toString();
+                devices.forEach(device => {
+                    if (topic.includes(device.mac)) {
+                        const relay = topic.includes('/r1/') ? 'r1' : 'r2';
+                        device.relays[relay] = msg === '1' ? 'on' : 'off';
+                        saveDevices(); renderDevices();
+                    }
+                });
             });
         }
-        
-        function updateStatus(relay, value) {
-            const statusEl = document.getElementById(relay + 'status');
-            if(value === "1") {
-                statusEl.textContent = "AÇIK";
-                statusEl.className = "status-badge status-on";
-            } else {
-                statusEl.textContent = "KAPALI";
-                statusEl.className = "status-badge status-off";
+
+        function subscribeDevice(device) {
+            if (!device.mac || !mqttClient) return;
+            mqttClient.subscribe(`esp01/${device.mac}/r1/state`);
+            mqttClient.subscribe(`esp01/${device.mac}/r2/state`);
+        }
+
+        function renderDevices() {
+            const container = document.getElementById('deviceList');
+            if (devices.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">Cihaz yok.</div>';
+                return;
+            }
+            container.innerHTML = devices.map(device => `
+                <div class="device-card">
+                    <div class="device-header">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-meta">${device.mac}</div>
+                    </div>
+                    ${['r1', 'r2'].map(r => `
+                        <div class="relay-item">
+                            <span>Röle ${r==='r1'?'1':'2'}</span>
+                            <button class="ctrl-btn ${device.relays[r]==='on'?'btn-on':'btn-off'}" onclick="toggleRelay('${device.id}','${r}')">
+                                ${device.relays[r]==='on'?'KAPAT':'AÇ'}
+                            </button>
+                        </div>
+                    `).join('')}
+                    <div class="device-actions">
+                        <button class="action-btn btn-delete" onclick="deleteDevice('${device.id}')">Sil</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleRelay(id, relay) {
+            const device = devices.find(d => d.id === id);
+            const newState = device.relays[relay] === 'on' ? '0' : '1';
+            mqttClient.publish(`esp01/${device.mac}/${relay}/set`, newState);
+            device.relays[relay] = newState === '1' ? 'on' : 'off';
+            renderDevices();
+        }
+
+        function addDevice() {
+            const name = document.getElementById('name').value;
+            const mac = document.getElementById('mac').value.toLowerCase().replace(/:/g, '');
+            const device = { id: 'dev_'+Date.now(), name, mac, relays: {r1:'off', r2:'off'} };
+            devices.push(device);
+            saveDevices(); subscribeDevice(device);
+            renderDevices(); showTab('devices');
+            return false;
+        }
+
+        function saveDevices() { localStorage.setItem('esp01_devices', JSON.stringify(devices)); }
+        function loadDevices() { const d = localStorage.getItem('esp01_devices'); if(d) { devices = JSON.parse(d); renderDevices(); } }
+
+        // --- Yeni Aktarma Fonksiyonları ---
+        function copyDeviceList() {
+            const data = localStorage.getItem('esp01_devices');
+            if (!data || devices.length === 0) return showAlert('Liste boş!', 'error');
+            navigator.clipboard.writeText(data).then(() => showAlert('Liste kopyalandı! WhatsApp ile gönderin.', 'success'));
+        }
+
+        function importDeviceList() {
+            const code = prompt("Kopyaladığınız cihaz listesi kodunu buraya yapıştırın:");
+            if (code) {
+                try {
+                    const parsed = JSON.parse(code);
+                    if (Array.isArray(parsed)) {
+                        devices = parsed;
+                        saveDevices();
+                        renderDevices();
+                        devices.forEach(subscribeDevice);
+                        showAlert('Liste başarıyla yüklendi!', 'success');
+                    }
+                } catch (e) { showAlert('Hatalı kod yapıştırdınız!', 'error'); }
             }
         }
+
+        function showTab(t) {
+            document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(t).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function deleteDevice(id) { if(confirm('Silinsin mi?')) { devices = devices.filter(d => d.id !== id); saveDevices(); renderDevices(); } }
+        function showAlert(m, t) { const a = document.getElementById('alert'); a.textContent = m; a.className = `alert ${t} show`; setTimeout(() => a.className = 'alert', 3000); }
     </script>
 </body>
 </html>
