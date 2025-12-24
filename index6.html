@@ -301,71 +301,45 @@
             localStorage.setItem('esp01_devices', JSON.stringify(devices));
         }
         
-        function renderDevices() {
+function renderDevices() {
             const container = document.getElementById('deviceList');
-            
             if (devices.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🏠</div>
-                        <p>Henüz cihaz eklenmemiş</p>
-                        <small style="color:#666; margin-top:10px;">Yeni cihaz eklemek için ➕ butonuna tıklayın</small>
-                    </div>
-                `;
+                container.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">Cihaz bulunamadı.</div>';
                 return;
             }
             
-            let html = '';
-            
-            devices.forEach(device => {
-                html += `
-                    <div class="device-card">
-                        <div class="device-header">
-                            <div class="device-name">${device.name}</div>
-                            <div class="device-meta">
-                                ${device.mac}<br>
-                                ${device.ip ? device.ip : ''}
-                            </div>
-                        </div>
-                        
-                        <div class="relay-control">
-                            <div class="relay-item">
-                                <div class="relay-info">
-                                    <div class="relay-name">Röle 1</div>
-                                    <div class="relay-status ${device.relays.r1 === 'on' ? 'on' : 'off'}">
-                                        ${device.relays.r1 === 'on' ? 'Açık' : 'Kapalı'}
-                                    </div>
-                                </div>
-                                <button class="toggle-btn ${device.relays.r1 === 'on' ? 'on' : 'off'}" 
-                                        onclick="toggleRelay('${device.id}', 'r1')">
-                                    <span class="toggle-slider"></span>
-                                </button>
-                            </div>
-                            
-                            <div class="relay-item">
-                                <div class="relay-info">
-                                    <div class="relay-name">Röle 2</div>
-                                    <div class="relay-status ${device.relays.r2 === 'on' ? 'on' : 'off'}">
-                                        ${device.relays.r2 === 'on' ? 'Açık' : 'Kapalı'}
-                                    </div>
-                                </div>
-                                <button class="toggle-btn ${device.relays.r2 === 'on' ? 'on' : 'off'}" 
-                                        onclick="toggleRelay('${device.id}', 'r2')">
-                                    <span class="toggle-slider"></span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="device-actions">
-                            <button class="action-btn btn-edit" onclick="editDevice('${device.id}')">Düzenle</button>
-                            <button class="action-btn btn-delete" onclick="deleteDevice('${device.id}')">Sil</button>
-                            ${device.ip ? `<button class="action-btn btn-check" onclick="checkDevice('${device.id}')">Durum</button>` : ''}
-                        </div>
+            container.innerHTML = devices.map(device => `
+                <div class="device-card">
+                    <div class="device-header">
+                        <div class="device-name">${device.name}</div>
+                        <div class="device-meta">${device.mac}<br>${device.ip || ''}</div>
                     </div>
-                `;
-            });
+                    ${['r1', 'r2'].map(r => `
+                        <div class="relay-item">
+                            <span>Röle ${r === 'r1' ? '1' : '2'} (${device.relays[r] === 'on' ? 'AÇIK' : 'KAPALI'})</span>
+                            <button class="btn-ctrl ${device.relays[r] === 'on' ? 'btn-off' : 'btn-on'}" 
+                                    onclick="toggleRelay('${device.id}', '${r}')">
+                                ${device.relays[r] === 'on' ? 'KAPAT' : 'AÇ'}
+                            </button>
+                        </div>
+                    `).join('')}
+                    <div class="device-actions">
+                        <button class="action-btn btn-edit" onclick="alert('Düzenleme yakında...')">Düzenle</button>
+                        <button class="action-btn btn-delete" onclick="deleteDevice('${device.id}')">Sil</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleRelay(deviceId, relay) {
+            const device = devices.find(d => d.id === deviceId);
+            if (!device || !mqttClient) return;
+            const newState = device.relays[relay] === 'on' ? '0' : '1';
+            mqttClient.publish(`esp01/${device.mac}/${relay}/set`, newState);
             
-            container.innerHTML = html;
+            // İyimser güncelleme (MQTT'den yanıt gelmeden arayüzü değiştirir)
+            device.relays[relay] = newState === '1' ? 'on' : 'off';
+            renderDevices();
         }
         
         function addDevice() {
@@ -402,22 +376,6 @@
             return false;
         }
         
-        function toggleRelay(deviceId, relay) {
-            const device = devices.find(d => d.id === deviceId);
-            if (!device || !device.mac || !mqttClient) return;
-            
-            const currentState = device.relays[relay];
-            const newState = currentState === 'on' ? '0' : '1';
-            
-            const topic = `esp01/${device.mac}/${relay}/set`;
-            mqttClient.publish(topic, newState, { qos: 0, retain: false });
-            
-            log(`${device.name} - ${relay}: ${currentState === 'on' ? 'Kapandı' : 'Açıldı'}`);
-            
-            device.relays[relay] = currentState === 'on' ? 'off' : 'on';
-            saveDevices();
-            renderDevices();
-        }
         
         async function checkDevice(deviceId) {
             const device = devices.find(d => d.id === deviceId);
