@@ -77,6 +77,8 @@
         </div>
     </div>
 
+    <div id="wifiSignal">WiFi: -- dBm</div>
+    
     <div id="editModal" class="modal">
         <div class="modal-content">
             <div style="margin-bottom:15px; font-size:18px; color:#4fc3f7;">Cihaz Düzenle</div>
@@ -92,6 +94,20 @@
     </div>
 
     <script>
+
+        if (data.rssi !== undefined) {
+    let rssi = data.rssi;
+    let quality = "Zayif";
+
+    if (rssi > -60) quality = "Cok Iyi";
+    else if (rssi > -70) quality = "Iyi";
+    else if (rssi > -80) quality = "Orta";
+
+    document.getElementById("wifiSignal").innerHTML =
+        "WiFi: " + rssi + " dBm (" + quality + ")";
+}
+
+        
         let mqttClient = null;
         let devices = [];
         window.onload = () => { loadDevices(); connectMQTT(); };
