@@ -33,7 +33,15 @@
             border-left: 4px solid #4fc3f7;
         }
         .device-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
-        .device-name { font-size: 16px; font-weight: 600; }
+        .device-name { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
+        .device-rssi { 
+            font-size: 12px; font-weight: normal; 
+            padding: 2px 6px; border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .device-rssi.excellent { color: #4caf50; }
+        .device-rssi.good { color: #ff9800; }
+        .device-rssi.poor { color: #f44336; }
         .device-meta { font-size: 11px; color: #888; }
         
         .relay-control { margin: 15px 0; }
@@ -204,6 +212,7 @@
     <script>
         let mqttClient = null;
         let devices = [];
+        let rssiCache = {}; // RSSI değerlerini cache'lemek için
         
         window.onload = function() {
             loadDevices();
@@ -235,6 +244,18 @@
                 const msg = message.toString();
                 log(`MQTT: ${topic} = ${msg}`);
                 
+                // RSSI değeri kontrolü
+                if (topic.includes('/status') && msg.includes('wifi_rssi')) {
+                    try {
+                        const data = JSON.parse(msg);
+                        if (data.wifi_rssi !== undefined) {
+                            updateDeviceRSSI(topic, data.wifi_rssi);
+                        }
+                    } catch (e) {
+                        // JSON parse hatası
+                    }
+                }
+                
                 devices.forEach(device => {
                     if (device.mac && topic.includes(device.mac)) {
                         if (topic.includes('/r1/state')) {
@@ -258,7 +279,8 @@
             
             const topics = [
                 `esp01/${device.mac}/r1/state`,
-                `esp01/${device.mac}/r2/state`
+                `esp01/${device.mac}/r2/state`,
+                `esp01/${device.mac}/status`
             ];
             
             topics.forEach(topic => {
@@ -272,12 +294,20 @@
             const stored = localStorage.getItem('esp01_devices');
             if (stored) {
                 devices = JSON.parse(stored);
+                
+                // Cache'den RSSI değerlerini yükle
+                const rssiCacheStored = localStorage.getItem('esp01_rssi_cache');
+                if (rssiCacheStored) {
+                    rssiCache = JSON.parse(rssiCacheStored);
+                }
+                
                 renderDevices();
             }
         }
         
         function saveDevices() {
             localStorage.setItem('esp01_devices', JSON.stringify(devices));
+            localStorage.setItem('esp01_rssi_cache', JSON.stringify(rssiCache));
         }
         
         function renderDevices() {
@@ -297,10 +327,18 @@
             let html = '';
             
             devices.forEach(device => {
+                // Bu cihaz için RSSI değerini al
+                const rssi = rssiCache[device.mac] || null;
+                const rssiClass = getRSSIClass(rssi);
+                const rssiDisplay = rssi !== null ? `${rssi} dBm` : '-- dBm';
+                
                 html += `
                     <div class="device-card">
                         <div class="device-header">
-                            <div class="device-name">${device.name}</div>
+                            <div>
+                                <div class="device-name">${device.name}</div>
+                                <span class="device-rssi ${rssiClass}">${rssiDisplay}</span>
+                            </div>
                             <div class="device-meta">
                                 ${device.mac}<br>
                                 ${device.ip ? device.ip : ''}
@@ -345,6 +383,24 @@
             });
             
             container.innerHTML = html;
+        }
+        
+        function getRSSIClass(rssi) {
+            if (rssi === null) return '';
+            if (rssi >= -60) return 'excellent';
+            if (rssi >= -70) return 'good';
+            return 'poor';
+        }
+        
+        function updateDeviceRSSI(topic, rssi) {
+            // Topic'ten MAC adresini çıkar
+            const match = topic.match(/esp01\/([a-f0-9]+)\/status/);
+            if (match) {
+                const mac = match[1];
+                rssiCache[mac] = rssi;
+                saveDevices();
+                renderDevices();
+            }
         }
         
         function addDevice() {
@@ -403,8 +459,28 @@
             const device = devices.find(d => d.id === deviceId);
             if (!device || !device.ip) return;
             
-            log(`${device.name} durum kontrolü...`);
-            showAlert('Durum kontrol ediliyor...', 'success');
+            try {
+                showAlert(`${device.name} durum kontrolü...`, 'success');
+                
+                // HTTP isteği ile durum kontrolü
+                const response = await fetch(`http://${device.ip}/status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // RSSI değerini güncelle
+                    if (data.wifi_rssi !== undefined) {
+                        rssiCache[device.mac] = data.wifi_rssi;
+                        saveDevices();
+                        renderDevices();
+                    }
+                    
+                    showAlert(`${device.name}: RSSI ${data.wifi_rssi || '--'} dBm`, 'success');
+                    log(`${device.name} RSSI: ${data.wifi_rssi || '--'} dBm`);
+                }
+            } catch (error) {
+                showAlert(`${device.name} bağlantı hatası`, 'error');
+                log(`${device.name} kontrol hatası: ${error}`);
+            }
         }
         
         function editDevice(deviceId) {
@@ -428,14 +504,25 @@
             if (mqttClient && device.mac) {
                 const oldTopics = [
                     `esp01/${device.mac}/r1/state`,
-                    `esp01/${device.mac}/r2/state`
+                    `esp01/${device.mac}/r2/state`,
+                    `esp01/${device.mac}/status`
                 ];
                 oldTopics.forEach(topic => mqttClient.unsubscribe(topic));
+                
+                // Eski RSSI değerini temizle
+                delete rssiCache[device.mac];
             }
             
+            const oldMac = device.mac;
             device.name = document.getElementById('editName').value.trim();
             device.mac = document.getElementById('editMac').value.trim().toLowerCase();
             device.ip = document.getElementById('editIp').value.trim() || null;
+            
+            // Eski MAC için RSSI değerini sil, yeni MAC'e taşı
+            if (oldMac !== device.mac && rssiCache[oldMac]) {
+                rssiCache[device.mac] = rssiCache[oldMac];
+                delete rssiCache[oldMac];
+            }
             
             subscribeDevice(device);
             saveDevices();
@@ -458,9 +545,13 @@
                 if (mqttClient && device.mac) {
                     const topics = [
                         `esp01/${device.mac}/r1/state`,
-                        `esp01/${device.mac}/r2/state`
+                        `esp01/${device.mac}/r2/state`,
+                        `esp01/${device.mac}/status`
                     ];
                     topics.forEach(topic => mqttClient.unsubscribe(topic));
+                    
+                    // RSSI cache'den sil
+                    delete rssiCache[device.mac];
                 }
                 
                 devices.splice(index, 1);
