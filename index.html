@@ -156,7 +156,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>ESP Kontrol <span class="ver">v1.5</span></h1>
+            <h1>ESP Kontrol <span class="ver">v1.6</span></h1>
             <div id="mqttStatus" class="status disconnected">Bağlantı Yok</div>
         </div>
         
@@ -180,7 +180,7 @@
                 </div>
                 <div id="discoverList"></div>
                 <small id="discoverEmpty" style="color:#666">Aranıyor... (cihazlar 30 sn'de bir yayın yapar)</small>
-                <small class="discover-note">Genel broker kullanılıyor: listede başkalarının cihazları da görünebilir. Eklemeden önce MAC'in son hanelerini kendi cihazınla karşılaştır.</small>
+                <small class="discover-note">Sadece bu internet bağlantısındaki (evdeki) cihazlar listelenir. Ev WiFi'sindeyken çalışır; cep verisindeyken liste boş kalır.</small>
             </div>
             <div class="form-sep">— veya elle ekle —</div>
             <form id="addForm" onsubmit="return addDevice()">
@@ -242,6 +242,7 @@
         window.onload = function() {
             loadDevices();
             connectMQTT();
+            computeMyNet();
         };
         
         function showTab(tabName) {
@@ -262,7 +263,24 @@
         // ===== Otomatik Bul: esp01/+/status yayinlarindan cihaz kesfi =====
         const DISCOVER_TOPIC = 'esp01/+/status';
         let discovering = false;
-        let discovered = {};  // mac -> { rssi, uptime, live, seen }
+        let discovered = {};  // mac -> { rssi, uptime, live, seen, net }
+
+        // Ag etiketi: genel IP'nin 16 bitlik ozeti (ESP01 firmware v2.4+ ile ayni
+        // hesap). Sadece etiketi esit olan = ayni internet baglantisindaki = evdeki
+        // cihazlar listelenir. null: hesaplaniyor, '': alinamadi.
+        let myNet = null;
+        async function computeMyNet() {
+            try {
+                const r = await fetch('https://api.ipify.org?format=json');
+                const ip = (await r.json()).ip;
+                if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) throw new Error('IPv4 degil');
+                const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode('ev-lamba:' + ip));
+                myNet = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 4);
+            } catch (e) {
+                myNet = '';
+            }
+            renderDiscovered();
+        }
 
         function startDiscovery() {
             discovering = true;
@@ -292,7 +310,8 @@
                 rssi: Number.isFinite(rssi) ? rssi : null,
                 uptime: Number(data.uptime) || 0,
                 live: !retained || !!(prev && prev.live),  // retained = son kayit, cihaz kapali olabilir
-                seen: Date.now()
+                seen: Date.now(),
+                net: (typeof data.net === 'string') ? data.net : null
             };
             renderDiscovered();
         }
@@ -308,7 +327,11 @@
             const list = document.getElementById('discoverList');
             const empty = document.getElementById('discoverEmpty');
             if (!list) return;
-            const macs = Object.keys(discovered).filter(m => !devices.some(d => d.mac === m));
+            // Sadece bizim agimiz: etiket eslesmeli. Etiketsizler (eski firmware,
+            // baskalarinin cihazlari) ve ag belirlenemezse hicbiri gosterilmez.
+            const macs = myNet
+                ? Object.keys(discovered).filter(m => discovered[m].net === myNet && !devices.some(d => d.mac === m))
+                : [];
 
             list.querySelectorAll('.disc-row').forEach(row => {
                 if (!macs.includes(row.dataset.mac)) row.remove();
@@ -331,6 +354,9 @@
                 row.querySelector('.disc-meta').innerHTML = `${state} · ${rssi} · açık: ${fmtUptime(d.uptime)}`;
             });
             empty.style.display = macs.length ? 'none' : 'block';
+            empty.textContent = myNet === null ? 'Ağ kimliği belirleniyor...'
+                : myNet === '' ? 'Ağ kimliği alınamadı (internet?) - liste gösterilemiyor'
+                : 'Bu ağda eklenmemiş cihaz yok. (Cihazlar 30 sn\'de bir yayın yapar)';
         }
 
         function addDiscovered(mac) {
